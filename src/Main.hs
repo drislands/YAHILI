@@ -28,7 +28,7 @@ runPrompt = do
     done <- isEOF
     unless done $ do
         input <- getLine
-        run input
+        _ <- run input
         runPrompt
 
 runFile :: FilePath -> IO ()
@@ -37,13 +37,25 @@ runFile file = do
     if not exists then usage else do
         handle <- openFile file ReadMode
         contents <- hGetContents handle
-        run contents
+        succeeded <- run contents
+        unless succeeded $ exitWith (ExitFailure 65)
 
 usage :: IO ()
 usage = putStrLn "Usage: yahili [script]"
 
-run :: String -> IO ()
+run :: String -> IO Bool
 run source = do
     let tokens = tokensFromSource source
 
     mapM_ (putStrLn . show) tokens
+
+    pure True
+
+
+-- Error stuff.
+loxError :: Int -> String -> IO ()
+loxError lineNum message = loxReport lineNum "" message
+
+loxReport :: Int -> String -> String -> IO ()
+loxReport lineNum where' message = do
+    hPutStrLn stderr $ "[line " <> show lineNum <> "] Error" <> where' <> ": " <> message
