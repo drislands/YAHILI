@@ -32,37 +32,43 @@ data TokenType =
     Lx_EOF
     deriving (Show,Eq)
 
+data LexError =
+    UnexpectedChar Int Char
 
-tokensFromSource :: String -> [Token]
-tokensFromSource src = 
-    let (ts,n,_) = tokensFromSource' ([],1,src)
-        finalEOF = Token { getTokenType=Lx_EOF,getLexeme="",getLineNum=n+1 }
-    in  case length ts of
-        0 -> [finalEOF]
-        _ -> reverse $ finalEOF : ts
+type Lexing a = Either LexError a
 
-tokensFromSource' :: ([Token],Int,String) -> ([Token],Int,String)
-tokensFromSource' (ts,n,"") = (ts,n,"")
-tokensFromSource' (ts,n,s) =
-    let (token,n',ss) = scanToken s
-    in  tokensFromSource' (token:ts,n',ss)
+
+tokensFromSource :: String -> Lexing [Token]
+tokensFromSource src = do
+    (ts,n,_) <- tokensFromSource' ([],1,src)
+    let finalEOF = Token { getTokenType=Lx_EOF,getLexeme="",getLineNum=n+1 }
+    case length ts of
+        0 -> pure [finalEOF]
+        _ -> pure $ reverse $ finalEOF : ts
+
+tokensFromSource' :: ([Token],Int,String) -> Lexing ([Token],Int,String)
+tokensFromSource' (ts,n,"") = pure (ts,n,"")
+tokensFromSource' (ts,n,s) = do
+    (token,n',ss) <- scanToken s
+    tokensFromSource' (token:ts,n',ss)
   where
-    scanToken :: String -> (Token,Int,String)
+    scanToken :: String -> Lexing (Token,Int,String)
     scanToken "" = undefined
-    scanToken (x:xs) = 
-        let token = Token { getTokenType = getType, getLexeme = [x], getLineNum = n}
-        in  (token,n,xs)
+    scanToken (x:xs) = do
+        tt <- getType
+        let token = Token { getTokenType = tt, getLexeme = [x], getLineNum = n}
+        pure (token,n,xs)
       where
-        getType :: TokenType
+        getType :: Lexing TokenType
         getType = case x of
-            '(' -> Lx_LeftParen
-            ')' -> Lx_RightParen
-            '{' -> Lx_LeftBrace
-            '}' -> Lx_RightBrace
-            ',' -> Lx_Comma
-            '.' -> Lx_Dot
-            '-' -> Lx_Minus
-            '+' -> Lx_Plus
-            ';' -> Lx_Semicolon
-            '*' -> Lx_Star
-            _   -> undefined
+            '(' -> pure Lx_LeftParen
+            ')' -> pure Lx_RightParen
+            '{' -> pure Lx_LeftBrace
+            '}' -> pure Lx_RightBrace
+            ',' -> pure Lx_Comma
+            '.' -> pure Lx_Dot
+            '-' -> pure Lx_Minus
+            '+' -> pure Lx_Plus
+            ';' -> pure Lx_Semicolon
+            '*' -> pure Lx_Star
+            c   -> Left (UnexpectedChar n c)
