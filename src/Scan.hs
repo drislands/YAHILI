@@ -1,6 +1,17 @@
 module Scan where
 
-data Token = Token deriving (Show)
+data Token = Token 
+    { getTokenType :: TokenType
+    , getLexeme    :: String
+    -- , getLiteral   :: (Show a) => a
+    , getLineNum   :: Int
+    }
+instance Show Token where
+    show t =
+        let tt = getTokenType t
+            tl = getLineNum t
+        in  show tt <> " " <> getLexeme t -- <> " " <> show tl
+
 
 data TokenType =
     -- Single character
@@ -19,6 +30,7 @@ data TokenType =
     Lx_This       | Lx_True         | Lx_Var       | Lx_While      |
     -- And EOF by itself
     Lx_EOF
+    deriving (Show,Eq)
 
 
 tokensFromSource :: String -> [Token]
