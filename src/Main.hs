@@ -5,6 +5,8 @@ import System.Environment (getArgs)
 import System.Directory
 import qualified Data.List.NonEmpty as NE
 import Control.Monad
+import System.Exit (exitWith, ExitCode (ExitFailure))
+import Scan (tokensFromSource)
 
 main :: IO ()
 main = do
@@ -15,7 +17,9 @@ main = do
         Nothing -> runPrompt
         Just as -> case NE.length as of
             1 -> runFile (NE.head as)
-            _ -> usage 
+            _ -> do 
+                usage 
+                exitWith (ExitFailure 64)
 
 runPrompt :: IO ()
 runPrompt = do
@@ -39,4 +43,7 @@ usage :: IO ()
 usage = putStrLn "Usage: yahili [script]"
 
 run :: String -> IO ()
-run = undefined
+run source = do
+    let tokens = tokensFromSource source
+
+    mapM_ (putStrLn . show) tokens
