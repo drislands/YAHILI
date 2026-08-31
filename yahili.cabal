@@ -68,6 +68,7 @@ executable yahili
 
     -- Other library packages from which modules are imported.
     build-depends:    base ^>=4.20.2.0
+                     ,directory
 
     -- Directories containing source files.
     hs-source-dirs:   src
