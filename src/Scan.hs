@@ -84,12 +84,14 @@ tokensFromSource' (ts,n,s) = do
         '/' -> case xs of
             '/':_ -> do
                 let (_,rest) = break (\c-> c=='\n') xs
-                pure (Nothing, n+1, rest)
+                pure (Nothing, n, rest)
             _     -> tok Lx_Slash [x] xs
 
         -- Newlines and whitespace!
         '\n' -> pure (Nothing, n+1, xs)
         ' '  -> pure (Nothing, n, xs)
+        '\t'  -> pure (Nothing, n, xs)
+        '\r'  -> pure (Nothing, n, xs)
 
         -- Unexpected characters
         _   -> do
