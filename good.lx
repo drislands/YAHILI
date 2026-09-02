@@ -4,3 +4,4 @@
 ("here's some stuff")
 (("and a multi
   line one too!"))
+"and here's a number" (123.456 {789})
