@@ -96,34 +96,9 @@ tokensFromSource' (ts,n,s) = do
         '\t' -> pure (Nothing, n, xs)
         '\r' -> pure (Nothing, n, xs)
 
-        -- Strings!!!
-        '"' -> do
-            let (value,rest) = break (=='"') xs
-                newlineCount = foldr (\c acc -> if c=='\n' then acc+1 else acc) 0 value
-                endLine      = n+newlineCount
-            case NE.nonEmpty rest of
-                Nothing -> do
-                    tell [UnterminatedString n]
-                    pure (Nothing, endLine, rest)
-                Just rest' -> do
-                    -- get the tail here to skip the closing quote.
-                    let token = Token { getTokenType = Lx_String, getLexeme = value, getLineNum = endLine }
-                    pure (Just token, endLine, NE.tail rest')
-
-        -- Numbers!!!
-        c | isDigit c -> do
-            let (left,rest) = span isDigit xs
-            case rest of
-                -- If the next character is a period and the one after is a digit, we have a decimal number.
-                '.' : rest'@(c':_) | isDigit c' -> do
-                    let (right,rest'') = span isDigit rest'
-                        value = [c] <> left <> "." <> right
-                        token = Token { getTokenType = Lx_Number, getLexeme = value, getLineNum = n}
-                    pure (Just token, n, rest'')
-                -- Otherwise the original set of digits is it.
-                _ -> do
-                    let token = Token { getTokenType = Lx_Number, getLexeme = [c] <> left, getLineNum = n}
-                    pure (Just token, n, rest)
+        -- Literals!
+        '"' -> makeString
+        c | isDigit c -> makeNumber c
 
         -- Unexpected characters
         _   -> do
@@ -136,3 +111,30 @@ tokensFromSource' (ts,n,s) = do
         match expected twoToken oneToken rest = case rest of
             c:cs | c == expected -> tok twoToken [x,c] cs
             _                    -> tok oneToken [x]   rest
+        makeNumber :: Char -> Lexing (Maybe Token,Int,String)
+        makeNumber c = do
+            let (left,rest) = span isDigit xs
+            case rest of
+                -- If the next character is a period and the one after is a digit, we have a decimal number.
+                '.' : rest'@(c':_) | isDigit c' -> do
+                    let (right,rest'') = span isDigit rest'
+                        value = [c] <> left <> "." <> right
+                        token = Token { getTokenType = Lx_Number, getLexeme = value, getLineNum = n}
+                    pure (Just token, n, rest'')
+                -- Otherwise the original set of digits is it.
+                _ -> do
+                    let token = Token { getTokenType = Lx_Number, getLexeme = [c] <> left, getLineNum = n}
+                    pure (Just token, n, rest)
+        makeString :: Lexing (Maybe Token,Int,String)
+        makeString = do
+            let (value,rest) = break (=='"') xs
+                newlineCount = foldr (\c acc -> if c=='\n' then acc+1 else acc) 0 value
+                endLine      = n+newlineCount
+            case NE.nonEmpty rest of
+                Nothing -> do
+                    tell [UnterminatedString n]
+                    pure (Nothing, endLine, rest)
+                Just rest' -> do
+                    -- get the tail here to skip the closing quote.
+                    let token = Token { getTokenType = Lx_String, getLexeme = value, getLineNum = endLine }
+                    pure (Just token, endLine, NE.tail rest')
