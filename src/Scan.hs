@@ -54,60 +54,40 @@ tokensFromSource src = do
 tokensFromSource' :: ([Token],Int,String) -> Lexing ([Token],Int,String)
 tokensFromSource' (ts,n,"") = pure (ts,n,"")
 tokensFromSource' (ts,n,s) = do
-    scanned <- scanToken s
+    (scanned, n', ss) <- scanToken s
     case scanned of
-        Left (n',ss) -> tokensFromSource' (ts,n',ss)
-        Right (token,n',ss) -> tokensFromSource' (token:ts,n',ss)
+        Nothing   -> tokensFromSource' (ts,n',ss)
+        Just token-> tokensFromSource' (token:ts,n',ss)
   where
-    scanToken :: String -> Lexing  (Either (Int,String) (Token,Int,String))
-    scanToken "" = undefined
-    scanToken (x:"") = do
-        (mtt,_) <- getType x Nothing
-        case mtt of
-            Nothing -> pure $ Left (n,"")
-            Just tt -> do
-                let token = Token { getTokenType = tt, getLexeme = [x], getLineNum = n}
-                pure $ Right (token,n,"")
-    scanToken (x:y:ys) = do
-        (mtt,wasTwo) <- getType x (Just y)
-        let nextString = if wasTwo then ys else y:ys
-            lexeme     = if wasTwo then [x,y] else [x]
-        case mtt of
-            Nothing -> pure $ Left (n,nextString)
-            Just tt -> do
-                let token = Token { getTokenType = tt, getLexeme = lexeme, getLineNum = n}
-                pure $ Right (token,n,nextString)
-    getType :: Char -> Maybe Char -> Lexing (Maybe TokenType,Bool)
-    getType x Nothing = case charToToken x of
-        Just tok -> pure (Just tok,False)
-        Nothing  -> do
-            tell [UnexpectedChar n x]
-            pure (Nothing,False)
-    getType x (Just y) = case charsToToken x y of
-        (Just tok,b) -> pure (Just tok,b)
-        (Nothing,b) -> do
-            tell [UnexpectedChar n x]
-            pure (Nothing,b)
+    scanToken :: String -> Lexing  (Maybe Token,Int,String)
+    scanToken "" = pure (Nothing, n, "")
+    scanToken (x:xs) = case x of
+        -- Single-character tokens
+        '(' -> tok Lx_LeftParen  [x] xs
+        ')' -> tok Lx_RightParen [x] xs
+        '{' -> tok Lx_LeftBrace  [x] xs
+        '}' -> tok Lx_RightBrace [x] xs
+        ',' -> tok Lx_Comma      [x] xs
+        '.' -> tok Lx_Dot        [x] xs
+        '-' -> tok Lx_Minus      [x] xs
+        '+' -> tok Lx_Plus       [x] xs
+        ';' -> tok Lx_Semicolon  [x] xs
+        '*' -> tok Lx_Star       [x] xs
 
-    charToToken :: Char -> Maybe TokenType
-    charToToken = \case
-        '(' -> Just Lx_LeftParen
-        ')' -> Just Lx_RightParen
-        '{' -> Just Lx_LeftBrace
-        '}' -> Just Lx_RightBrace
-        ',' -> Just Lx_Comma
-        '.' -> Just Lx_Dot
-        '-' -> Just Lx_Minus
-        '+' -> Just Lx_Plus
-        ';' -> Just Lx_Semicolon
-        '*' -> Just Lx_Star
-        _   -> Nothing
-    charsToToken :: Char -> Char -> (Maybe TokenType,Bool)
-    charsToToken x y = 
-        let lx_isEquals = y == '='
-        in  case x of
-            '!' -> if lx_isEquals then (Just Lx_BangEqual,True) else (Just Lx_Bang,False)
-            '=' -> if lx_isEquals then (Just Lx_EqualEqual,True) else (Just Lx_Equal,False)
-            '<' -> if lx_isEquals then (Just Lx_LessEqual,True) else (Just Lx_Less,False)
-            '>' -> if lx_isEquals then (Just Lx_GreaterEqual,True) else (Just Lx_Greater,False)
-            _ -> (charToToken x,False)
+        -- Possibly-two-character tokens
+        '!' -> match '=' Lx_BangEqual    Lx_Bang    xs
+        '=' -> match '=' Lx_EqualEqual   Lx_Equal   xs
+        '<' -> match '=' Lx_LessEqual    Lx_Less    xs
+        '>' -> match '=' Lx_GreaterEqual Lx_Greater xs
+
+        -- Unexpected characters
+        _   -> do
+            tell [UnexpectedChar n x]
+            pure (Nothing, n, xs)
+      where
+        tok :: TokenType -> String -> String -> Lexing (Maybe Token,Int,String)
+        tok tt lexeme rest = pure (Just Token { getTokenType = tt, getLexeme = lexeme, getLineNum = n },n,rest)
+        match :: Char -> TokenType -> TokenType -> String -> Lexing (Maybe Token,Int,String)
+        match expected twoToken oneToken rest = case rest of
+            c:cs | c == expected -> tok twoToken [x,c] cs
+            _                    -> tok oneToken [x]   rest
