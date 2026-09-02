@@ -2,7 +2,7 @@
 
 module Scan where
 
-import Data.Char (isDigit)
+import Data.Char (isDigit,isAlpha,isAlphaNum)
 import Control.Monad.Writer
 import qualified Data.List.NonEmpty as NE
 
@@ -37,6 +37,26 @@ data TokenType =
     -- And EOF by itself
     Lx_EOF
     deriving (Show,Eq)
+
+findKeyword :: String -> TokenType
+findKeyword = \case
+    "and"    -> Lx_And
+    "class"  -> Lx_Class
+    "else"   -> Lx_Else
+    "false"  -> Lx_False
+    "for"    -> Lx_For
+    "fun"    -> Lx_Fun
+    "if"     -> Lx_If
+    "nil"    -> Lx_Nil
+    "or"     -> Lx_Or
+    "print"  -> Lx_Print
+    "return" -> Lx_Return
+    "super"  -> Lx_Super
+    "this"   -> Lx_This
+    "true"   -> Lx_True
+    "var"    -> Lx_Var
+    "while"  -> Lx_While
+    _        -> Lx_Identifier
 
 data LexError =
     UnexpectedChar Int Char |
@@ -96,9 +116,10 @@ tokensFromSource' (ts,n,s) = do
         '\t' -> pure (Nothing, n, xs)
         '\r' -> pure (Nothing, n, xs)
 
-        -- Literals!
+        -- Literals and Identifiers!
         '"' -> makeString
-        c | isDigit c -> makeNumber c
+        c | isDigit c -> makeNumber     c
+          | isAlpha c -> makeIdentifier c
 
         -- Unexpected characters
         _   -> do
@@ -138,3 +159,10 @@ tokensFromSource' (ts,n,s) = do
                     -- get the tail here to skip the closing quote.
                     let token = Token { getTokenType = Lx_String, getLexeme = value, getLineNum = endLine }
                     pure (Just token, endLine, NE.tail rest')
+        makeIdentifier :: Char -> Lexing (Maybe Token,Int,String)
+        makeIdentifier c = do
+            let (value',rest) = span isAlphaNum xs
+                value         = [c] <> value'
+                tt            = findKeyword value
+                token = Token { getTokenType = tt, getLexeme = value, getLineNum = n }
+            pure (Just token,n,rest)
