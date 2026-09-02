@@ -60,7 +60,8 @@ findKeyword = \case
 
 data LexError =
     UnexpectedChar Int Char |
-    UnterminatedString Int
+    UnterminatedString Int  |
+    UnclosedComment Int
     deriving (Show,Eq)
 
 type Lexing a = Writer [LexError] a
@@ -108,6 +109,12 @@ tokensFromSource' (ts,n,s) = do
             '/':_ -> do
                 let (_,rest) = break (\c-> c=='\n') xs
                 pure (Nothing, n, rest)
+            '*':rest -> do
+                case closeComment n rest of
+                    (n',"") -> do
+                        tell [UnclosedComment n]
+                        pure (Nothing, n', "")
+                    (n',rest') -> pure (Nothing, n', rest')
             _     -> tok Lx_Slash [x] xs
 
         -- Newlines and whitespace!
@@ -146,10 +153,12 @@ tokensFromSource' (ts,n,s) = do
                 _ -> do
                     let token = Token { getTokenType = Lx_Number, getLexeme = [c] <> left, getLineNum = n}
                     pure (Just token, n, rest)
+        countNewlines :: String -> Int
+        countNewlines = foldr (\c acc -> if c=='\n' then acc+1 else acc) 0 
         makeString :: Lexing (Maybe Token,Int,String)
         makeString = do
             let (value,rest) = break (=='"') xs
-                newlineCount = foldr (\c acc -> if c=='\n' then acc+1 else acc) 0 value
+                newlineCount = countNewlines value
                 endLine      = n+newlineCount
             case NE.nonEmpty rest of
                 Nothing -> do
@@ -166,3 +175,11 @@ tokensFromSource' (ts,n,s) = do
                 tt            = findKeyword value
                 token = Token { getTokenType = tt, getLexeme = value, getLineNum = n }
             pure (Just token,n,rest)
+        closeComment :: Int -> String -> (Int,String)
+        closeComment n' rest = 
+            let (left,right) = break (=='*') rest
+                newlineCount = countNewlines left + n'
+            in  case right of
+                '*':'/':rest' -> (newlineCount,rest')
+                '*':rest'     -> closeComment newlineCount rest'
+                _             -> (newlineCount,"")

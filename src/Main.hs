@@ -55,6 +55,7 @@ run source = do
             case err of
                 UnexpectedChar     n c -> loxError n $ "Unexpected character:  " <> [c]
                 UnterminatedString n   -> loxError n $ "Unterminated string starting on line " <> show n
+                UnclosedComment    n   -> loxError n $ "Unclosed comment starting on line " <> show n
         pure False
     else do
         mapM_ (putStrLn . show) tokens
