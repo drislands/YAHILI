@@ -2,6 +2,7 @@
 
 module Scan where
 
+import Data.Char (isDigit)
 import Control.Monad.Writer
 import qualified Data.List.NonEmpty as NE
 
@@ -14,7 +15,7 @@ data Token = Token
 instance Show Token where
     show t =
         let tt = getTokenType t
-            tl = getLineNum t
+            -- tl = getLineNum t
         in  show tt <> " " <> getLexeme t -- <> " " <> show tl
 
 
@@ -109,6 +110,20 @@ tokensFromSource' (ts,n,s) = do
                     let token = Token { getTokenType = Lx_String, getLexeme = value, getLineNum = endLine }
                     pure (Just token, endLine, NE.tail rest')
 
+        -- Numbers!!!
+        c | isDigit c -> do
+            let (left,rest) = span isDigit xs
+            case rest of
+                -- If the next character is a period and the one after is a digit, we have a decimal number.
+                '.' : rest'@(c':_) | isDigit c' -> do
+                    let (right,rest'') = span isDigit rest'
+                        value = [c] <> left <> "." <> right
+                        token = Token { getTokenType = Lx_Number, getLexeme = value, getLineNum = n}
+                    pure (Just token, n, rest'')
+                -- Otherwise the original set of digits is it.
+                _ -> do
+                    let token = Token { getTokenType = Lx_Number, getLexeme = [c] <> left, getLineNum = n}
+                    pure (Just token, n, rest)
 
         -- Unexpected characters
         _   -> do
