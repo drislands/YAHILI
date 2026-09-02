@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Scan where
 
 import Control.Monad.Writer
@@ -68,17 +70,20 @@ tokensFromSource' (ts,n,s) = do
                 pure $ Right (token,n,xs)
       where
         getType :: Lexing (Maybe TokenType)
-        getType = case x of
-            '(' -> pure $ Just Lx_LeftParen
-            ')' -> pure $ Just Lx_RightParen
-            '{' -> pure $ Just Lx_LeftBrace
-            '}' -> pure $ Just Lx_RightBrace
-            ',' -> pure $ Just Lx_Comma
-            '.' -> pure $ Just Lx_Dot
-            '-' -> pure $ Just Lx_Minus
-            '+' -> pure $ Just Lx_Plus
-            ';' -> pure $ Just Lx_Semicolon
-            '*' -> pure $ Just Lx_Star
-            c   -> do
-                tell [UnexpectedChar n c]
+        getType = case charToToken x of
+            Just tok -> pure (Just tok)
+            Nothing  -> do
+                tell [UnexpectedChar n x]
                 pure Nothing
+        charToToken :: Char -> Maybe TokenType
+        charToToken = \case
+            '(' -> Just Lx_LeftParen
+            ')' -> Just Lx_RightParen
+            '{' -> Just Lx_LeftBrace
+            '}' -> Just Lx_RightBrace
+            ',' -> Just Lx_Comma
+            '.' -> Just Lx_Dot
+            '-' -> Just Lx_Minus
+            '+' -> Just Lx_Plus
+            ';' -> Just Lx_Semicolon
+            _   -> Nothing
