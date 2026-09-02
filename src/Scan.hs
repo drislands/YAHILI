@@ -80,6 +80,17 @@ tokensFromSource' (ts,n,s) = do
         '<' -> match '=' Lx_LessEqual    Lx_Less    xs
         '>' -> match '=' Lx_GreaterEqual Lx_Greater xs
 
+        -- Comments, maybe!
+        '/' -> case xs of
+            '/':_ -> do
+                let (_,rest) = break (\c-> c=='\n') xs
+                pure (Nothing, n+1, rest)
+            _     -> tok Lx_Slash [x] xs
+
+        -- Newlines and whitespace!
+        '\n' -> pure (Nothing, n+1, xs)
+        ' '  -> pure (Nothing, n, xs)
+
         -- Unexpected characters
         _   -> do
             tell [UnexpectedChar n x]
