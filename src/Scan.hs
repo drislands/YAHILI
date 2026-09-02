@@ -1,5 +1,7 @@
 module Scan where
 
+import Control.Monad.Writer
+
 data Token = Token 
     { getTokenType :: TokenType
     , getLexeme    :: String
@@ -34,8 +36,9 @@ data TokenType =
 
 data LexError =
     UnexpectedChar Int Char
+    deriving (Show,Eq)
 
-type Lexing a = Either LexError a
+type Lexing a = Writer [LexError] a
 
 
 tokensFromSource :: String -> Lexing [Token]
@@ -49,26 +52,33 @@ tokensFromSource src = do
 tokensFromSource' :: ([Token],Int,String) -> Lexing ([Token],Int,String)
 tokensFromSource' (ts,n,"") = pure (ts,n,"")
 tokensFromSource' (ts,n,s) = do
-    (token,n',ss) <- scanToken s
-    tokensFromSource' (token:ts,n',ss)
+    scanned <- scanToken s
+    case scanned of
+        Left (n',ss) -> tokensFromSource' (ts,n',ss)
+        Right (token,n',ss) -> tokensFromSource' (token:ts,n',ss)
   where
-    scanToken :: String -> Lexing (Token,Int,String)
+    scanToken :: String -> Lexing  (Either (Int,String) (Token,Int,String))
     scanToken "" = undefined
     scanToken (x:xs) = do
-        tt <- getType
-        let token = Token { getTokenType = tt, getLexeme = [x], getLineNum = n}
-        pure (token,n,xs)
+        mtt <- getType
+        case mtt of
+            Nothing -> pure $ Left (n,xs)
+            Just tt -> do
+                let token = Token { getTokenType = tt, getLexeme = [x], getLineNum = n}
+                pure $ Right (token,n,xs)
       where
-        getType :: Lexing TokenType
+        getType :: Lexing (Maybe TokenType)
         getType = case x of
-            '(' -> pure Lx_LeftParen
-            ')' -> pure Lx_RightParen
-            '{' -> pure Lx_LeftBrace
-            '}' -> pure Lx_RightBrace
-            ',' -> pure Lx_Comma
-            '.' -> pure Lx_Dot
-            '-' -> pure Lx_Minus
-            '+' -> pure Lx_Plus
-            ';' -> pure Lx_Semicolon
-            '*' -> pure Lx_Star
-            c   -> Left (UnexpectedChar n c)
+            '(' -> pure $ Just Lx_LeftParen
+            ')' -> pure $ Just Lx_RightParen
+            '{' -> pure $ Just Lx_LeftBrace
+            '}' -> pure $ Just Lx_RightBrace
+            ',' -> pure $ Just Lx_Comma
+            '.' -> pure $ Just Lx_Dot
+            '-' -> pure $ Just Lx_Minus
+            '+' -> pure $ Just Lx_Plus
+            ';' -> pure $ Just Lx_Semicolon
+            '*' -> pure $ Just Lx_Star
+            c   -> do
+                tell [UnexpectedChar n c]
+                pure Nothing

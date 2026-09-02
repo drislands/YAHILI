@@ -7,6 +7,7 @@ import qualified Data.List.NonEmpty as NE
 import Control.Monad
 import System.Exit (exitWith, ExitCode (ExitFailure))
 import Scan (tokensFromSource, LexError (UnexpectedChar))
+import Control.Monad.Writer (runWriter)
 
 main :: IO ()
 main = do
@@ -47,14 +48,17 @@ run :: String -> IO Bool
 run source = do
     let parsed = tokensFromSource source
 
-    case parsed of
-        Left err -> case err of
-            UnexpectedChar n c -> do
-                loxError n $ "Unexpected character:  " <> [c]
-                pure False
-        Right tokens -> do
-            mapM_ (putStrLn . show) tokens
-            pure True
+        (tokens,errors) = runWriter parsed 
+
+    if (not . null) errors then do
+        forM_ errors $ \err ->
+            case err of
+                UnexpectedChar n c -> do
+                    loxError n $ "Unexpected character:  " <> [c]
+        pure False
+    else do
+        mapM_ (putStrLn . show) tokens
+        pure True
 
 
 -- Error stuff.
