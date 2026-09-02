@@ -61,29 +61,53 @@ tokensFromSource' (ts,n,s) = do
   where
     scanToken :: String -> Lexing  (Either (Int,String) (Token,Int,String))
     scanToken "" = undefined
-    scanToken (x:xs) = do
-        mtt <- getType
+    scanToken (x:"") = do
+        (mtt,_) <- getType x Nothing
         case mtt of
-            Nothing -> pure $ Left (n,xs)
+            Nothing -> pure $ Left (n,"")
             Just tt -> do
                 let token = Token { getTokenType = tt, getLexeme = [x], getLineNum = n}
-                pure $ Right (token,n,xs)
-      where
-        getType :: Lexing (Maybe TokenType)
-        getType = case charToToken x of
-            Just tok -> pure (Just tok)
-            Nothing  -> do
-                tell [UnexpectedChar n x]
-                pure Nothing
-        charToToken :: Char -> Maybe TokenType
-        charToToken = \case
-            '(' -> Just Lx_LeftParen
-            ')' -> Just Lx_RightParen
-            '{' -> Just Lx_LeftBrace
-            '}' -> Just Lx_RightBrace
-            ',' -> Just Lx_Comma
-            '.' -> Just Lx_Dot
-            '-' -> Just Lx_Minus
-            '+' -> Just Lx_Plus
-            ';' -> Just Lx_Semicolon
-            _   -> Nothing
+                pure $ Right (token,n,"")
+    scanToken (x:y:ys) = do
+        (mtt,wasTwo) <- getType x (Just y)
+        let nextString = if wasTwo then ys else y:ys
+            lexeme     = if wasTwo then [x,y] else [x]
+        case mtt of
+            Nothing -> pure $ Left (n,nextString)
+            Just tt -> do
+                let token = Token { getTokenType = tt, getLexeme = lexeme, getLineNum = n}
+                pure $ Right (token,n,nextString)
+    getType :: Char -> Maybe Char -> Lexing (Maybe TokenType,Bool)
+    getType x Nothing = case charToToken x of
+        Just tok -> pure (Just tok,False)
+        Nothing  -> do
+            tell [UnexpectedChar n x]
+            pure (Nothing,False)
+    getType x (Just y) = case charsToToken x y of
+        (Just tok,b) -> pure (Just tok,b)
+        (Nothing,b) -> do
+            tell [UnexpectedChar n x]
+            pure (Nothing,b)
+
+    charToToken :: Char -> Maybe TokenType
+    charToToken = \case
+        '(' -> Just Lx_LeftParen
+        ')' -> Just Lx_RightParen
+        '{' -> Just Lx_LeftBrace
+        '}' -> Just Lx_RightBrace
+        ',' -> Just Lx_Comma
+        '.' -> Just Lx_Dot
+        '-' -> Just Lx_Minus
+        '+' -> Just Lx_Plus
+        ';' -> Just Lx_Semicolon
+        '*' -> Just Lx_Star
+        _   -> Nothing
+    charsToToken :: Char -> Char -> (Maybe TokenType,Bool)
+    charsToToken x y = 
+        let lx_isEquals = y == '='
+        in  case x of
+            '!' -> if lx_isEquals then (Just Lx_BangEqual,True) else (Just Lx_Bang,False)
+            '=' -> if lx_isEquals then (Just Lx_EqualEqual,True) else (Just Lx_Equal,False)
+            '<' -> if lx_isEquals then (Just Lx_LessEqual,True) else (Just Lx_Less,False)
+            '>' -> if lx_isEquals then (Just Lx_GreaterEqual,True) else (Just Lx_Greater,False)
+            _ -> (charToToken x,False)
