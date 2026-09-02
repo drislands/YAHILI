@@ -3,6 +3,7 @@
 module Scan where
 
 import Control.Monad.Writer
+import qualified Data.List.NonEmpty as NE
 
 data Token = Token 
     { getTokenType :: TokenType
@@ -37,7 +38,8 @@ data TokenType =
     deriving (Show,Eq)
 
 data LexError =
-    UnexpectedChar Int Char
+    UnexpectedChar Int Char |
+    UnterminatedString Int
     deriving (Show,Eq)
 
 type Lexing a = Writer [LexError] a
@@ -90,8 +92,23 @@ tokensFromSource' (ts,n,s) = do
         -- Newlines and whitespace!
         '\n' -> pure (Nothing, n+1, xs)
         ' '  -> pure (Nothing, n, xs)
-        '\t'  -> pure (Nothing, n, xs)
-        '\r'  -> pure (Nothing, n, xs)
+        '\t' -> pure (Nothing, n, xs)
+        '\r' -> pure (Nothing, n, xs)
+
+        -- Strings!!!
+        '"' -> do
+            let (value,rest) = break (=='"') xs
+                newlineCount = foldr (\c acc -> if c=='\n' then acc+1 else acc) 0 value
+                endLine      = n+newlineCount
+            case NE.nonEmpty rest of
+                Nothing -> do
+                    tell [UnterminatedString n]
+                    pure (Nothing, endLine, rest)
+                Just rest' -> do
+                    -- get the tail here to skip the closing quote.
+                    let token = Token { getTokenType = Lx_String, getLexeme = value, getLineNum = endLine }
+                    pure (Just token, endLine, NE.tail rest')
+
 
         -- Unexpected characters
         _   -> do

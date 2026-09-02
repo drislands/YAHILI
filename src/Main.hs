@@ -6,7 +6,7 @@ import System.Directory
 import qualified Data.List.NonEmpty as NE
 import Control.Monad
 import System.Exit (exitWith, ExitCode (ExitFailure))
-import Scan (tokensFromSource, LexError (UnexpectedChar))
+import Scan (tokensFromSource, LexError (..))
 import Control.Monad.Writer (runWriter)
 
 main :: IO ()
@@ -53,8 +53,8 @@ run source = do
     if (not . null) errors then do
         forM_ errors $ \err ->
             case err of
-                UnexpectedChar n c -> do
-                    loxError n $ "Unexpected character:  " <> [c]
+                UnexpectedChar     n c -> loxError n $ "Unexpected character:  " <> [c]
+                UnterminatedString n   -> loxError n $ "Unterminated string starting on line " <> show n
         pure False
     else do
         mapM_ (putStrLn . show) tokens

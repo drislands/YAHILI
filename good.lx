@@ -1,3 +1,6 @@
 (())++
 // This is a comment, fool!
 ( / )
+("here's some stuff")
+(("and a multi
+  line one too!"))
