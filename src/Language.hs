@@ -12,4 +12,5 @@ data Expression =
     LBoolean Bool                        | -- true, false
     LNumber  Double                      | -- 4, 4.3, etc
     LNil                                   -- nil
+    deriving (Show)
     -- TODO: Variables?

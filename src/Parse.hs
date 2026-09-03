@@ -30,7 +30,9 @@ uglyPrint = \case
     LNumber  n             -> show n
 
 parse :: Tokens -> Parsing Expression
-parse tokens = undefined
+parse tokens = do
+    (ex,_) <- parseExpression tokens
+    pure ex
 
 parseExpression :: Tokens -> Parsing (Expression,Tokens)
 parseExpression = parseEquality
@@ -47,7 +49,35 @@ parseTerm = parseBinary parseFactor [Lx_Minus,Lx_Plus]
 parseFactor :: Tokens -> Parsing (Expression, Tokens)
 parseFactor = parseBinary parseUnary [Lx_Slash,Lx_Star]
 
-parseUnary = undefined
+parseUnary :: Tokens -> Parsing (Expression, Tokens)
+parseUnary tokens = 
+    case empty tokens of
+        Just (t NE.:| rest) | getTokenType t `elem` [Lx_Bang,Lx_Minus] -> do
+            (next,tokens') <- parseUnary rest
+            pure (Unary t next,tokens')
+        _ -> parsePrimary tokens
+
+parsePrimary :: Tokens -> Parsing (Expression, Tokens)
+parsePrimary tokens = 
+    case empty tokens of
+        Just (t NE.:| rest) -> case match t of
+            Just p -> pure (p,rest)
+            _      -> undefined -- TODO!
+        _ -> undefined          -- TODO!
+
+  where
+    match :: Token -> Maybe Expression
+    match t = 
+        let tt = getTokenType t
+            tl = getLexeme    t
+        in  case tt of
+            Lx_False     -> Just (LBoolean False)
+            Lx_True      -> Just (LBoolean True)
+            Lx_Nil       -> Just (LNil)
+            Lx_String    -> Just (LString tl)
+            Lx_Number    -> Just (LNumber (read tl))
+            _            -> Nothing
+    
 
 -- For Binary expressions, the form is ultimately the same: call the next function up in the
 -- precedence ladder, then possibly loop on the results depending on if this function's

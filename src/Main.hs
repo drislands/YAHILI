@@ -7,6 +7,7 @@ import qualified Data.List.NonEmpty as NE
 import Control.Monad
 import System.Exit (exitWith, ExitCode (ExitFailure))
 import Scan (tokensFromSource, LexError (..))
+import Parse (parse)
 import Control.Monad.Writer (runWriter)
 
 main :: IO ()
@@ -46,20 +47,26 @@ usage = putStrLn "Usage: yahili [script]"
 
 run :: String -> IO Bool
 run source = do
-    let parsed = tokensFromSource source
+    let scanned = tokensFromSource source
 
-        (tokens,errors) = runWriter parsed 
+        (tokens,scanErrors) = runWriter scanned 
 
-    if (not . null) errors then do
-        forM_ errors $ \err ->
+    if (not . null) scanErrors then do
+        forM_ scanErrors $ \err ->
             case err of
                 UnexpectedChar     n c -> loxError n $ "Unexpected character:  " <> [c]
                 UnterminatedString n   -> loxError n $ "Unterminated string starting on line " <> show n
                 UnclosedComment    n   -> loxError n $ "Unclosed comment starting on line " <> show n
         pure False
     else do
-        mapM_ (putStrLn . show) tokens
-        pure True
+        let parsed = parse tokens
+            (exp,parseErrors) = runWriter parsed
+        if (not . null) parseErrors then do
+            putStrLn "Whoops!"
+            pure False
+        else do
+            putStrLn $ show exp
+            pure True
 
 
 -- Error stuff.
