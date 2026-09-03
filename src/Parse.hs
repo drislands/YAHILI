@@ -38,13 +38,14 @@ parseExpression = parseEquality
 parseEquality :: Tokens -> Parsing (Expression,Tokens)
 parseEquality tokens = do
     (left,tokens') <- parseComparison tokens
-    case empty tokens' of
-        Nothing -> pure (left,[])
+    loop left tokens'
+  where
+    loop :: Expression -> Tokens -> Parsing (Expression,Tokens)
+    loop expr ts = case empty ts of
         Just (t NE.:| rest) | getTokenType t `elem` [Lx_BangEqual,Lx_EqualEqual] -> do
-            (right,tokens'') <- parseEquality rest
-            let expr = Binary left t right
-            pure (expr,tokens'')
-                            | otherwise -> pure (left,tokens')
+            (right,ts') <- parseComparison rest
+            loop (Binary expr t right) ts'
+        _ -> pure (expr,ts)
 
 
 parseComparison = undefined
