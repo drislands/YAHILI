@@ -3,12 +3,12 @@
 module Parse where
 
 import Control.Monad.Writer
-import qualified Data.List.NonEmpty as NE
 
 import Language
 
 data ParseError =
-    ParseError deriving (Show,Eq)
+    ParseError (Maybe Token) String 
+    deriving (Show)
 
 type Parsing a = Writer [ParseError] a
 
@@ -49,16 +49,16 @@ parseFactor = parseBinary parseUnary [Lx_Slash,Lx_Star]
 
 parseUnary :: Tokens -> Parsing (Expression, Tokens)
 parseUnary tokens = 
-    case empty tokens of
-        Just (t NE.:| rest) | getTokenType t `elem` [Lx_Bang,Lx_Minus] -> do
+    case tokens of
+        t :| rest | getTokenType t `elem` [Lx_Bang,Lx_Minus] -> do
             (next,tokens') <- parseUnary rest
             pure (Unary t next,tokens')
         _ -> parsePrimary tokens
 
 parsePrimary :: Tokens -> Parsing (Expression, Tokens)
 parsePrimary tokens = 
-    case empty tokens of
-        Just (t NE.:| rest) -> case match t of
+    case tokens of
+        t :| rest -> case match t of
             Just p -> pure (p,rest)
             _      -> undefined -- TODO!
         _ -> undefined          -- TODO!
@@ -76,6 +76,24 @@ parsePrimary tokens =
             Lx_Number    -> Just (LNumber (read tl))
             _            -> Nothing
     
+-- Error handling!
+consume :: Tokens -> TokenType -> String-> Parsing Tokens
+consume tokens tt errMsg = do
+    case tokens of
+        t :| rest | getTokenType t == tt -> pure rest
+                            | otherwise            -> error' (Just t) errMsg True tokens
+        _                                          -> error' Nothing  errMsg True tokens
+
+-- TODO: entering panic mode!
+error' :: Maybe Token -> String -> Bool -> Tokens -> Parsing Tokens
+error' t message panic rest = do
+    tell [ParseError t message]
+    if panic then synchronize rest else undefined
+
+
+synchronize :: Tokens -> Parsing Tokens
+synchronize tokens = undefined
+
 
 -- For Binary expressions, the form is ultimately the same: call the next function up in the
 -- precedence ladder, then possibly loop on the results depending on if this function's
@@ -86,15 +104,15 @@ parseBinary nextFunc types tokens = do
     loop left tokens'
   where
     loop :: Expression -> Tokens -> Parsing (Expression,Tokens)
-    loop expr ts = case empty ts of
-        Just (t NE.:| rest) | getTokenType t `elem` types -> do
+    loop expr ts = case ts of
+        t :| rest | getTokenType t `elem` types -> do
             (right,ts') <- nextFunc rest
             loop (Binary expr t right) ts'
         _ -> pure (expr,ts)
 
--- For our purposes, hitting an EOF is the same as hitting the end of the list.
-empty :: Tokens -> Maybe (NE.NonEmpty Token)
-empty ts = case NE.nonEmpty ts of
-    Nothing -> Nothing
-    Just ts'@(t NE.:| _) | getTokenType t == Lx_EOF -> Nothing
-                         | otherwise      -> Just ts'
+-- -- For our purposes, hitting an EOF is the same as hitting the end of the list.
+-- empty :: Tokens -> Maybe (NE.NonEmpty Token)
+-- empty ts = case NE.nonEmpty ts of
+--     Nothing -> Nothing
+--     Just ts'@(t NE.:| _) | getTokenType t == Lx_EOF -> Nothing
+--                          | otherwise      -> Just ts'

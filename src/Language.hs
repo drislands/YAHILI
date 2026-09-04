@@ -1,4 +1,14 @@
-module Language where
+{-# LANGUAGE PatternSynonyms #-}
+
+module Language
+    ( TokenType(..)
+    , Token(..)
+    , Expression(..)
+    , Tokens
+    , mkTokens
+    , pattern TksLast
+    , pattern (:|)
+    ) where
 
 
 
@@ -34,8 +44,6 @@ data TokenType =
     Lx_EOF
     deriving (Show,Eq)
 
-type Tokens = [Token]
-
 data Expression =
     -- Recursive expressions
     Binary   Expression Token Expression | -- 4 + 3, i * j, etc
@@ -48,3 +56,40 @@ data Expression =
     LNil                                   -- nil
     deriving (Show)
     -- TODO: Variables?
+
+-- -----
+-- Specialized token list handling to guarantee that every list
+-- ends with an EOF.
+newtype EOFToken = UnsafeEOFToken { getEOF :: Token } deriving (Show)
+mkEOF :: Token -> Maybe EOFToken
+mkEOF t 
+    | getTokenType t == Lx_EOF = Just (UnsafeEOFToken t)
+    | otherwise                = Nothing
+
+newtype BodyToken = UnsafeBodyToken { getBodyToken :: Token } deriving (Show)
+mkBody :: Token -> Maybe BodyToken
+mkBody t
+    | getTokenType t /= Lx_EOF = Just (UnsafeBodyToken t)
+    | otherwise                = Nothing
+
+infixr 5 :|*
+
+data Tokens 
+    = TksLastInternal EOFToken
+    | BodyToken :|* Tokens
+    deriving (Show)
+
+pattern TksLast :: Token -> Tokens
+pattern TksLast t <- TksLastInternal (UnsafeEOFToken t)
+
+pattern (:|) :: Token -> Tokens -> Tokens
+pattern t :| rest <- UnsafeBodyToken t :|* rest
+
+-- Informs GHC that matching on (:|) and TksLast covers all cases of Tokens
+{-# COMPLETE (:|), TksLast #-}
+
+mkTokens :: [Token] -> Maybe Tokens
+mkTokens []     = Nothing
+mkTokens [t]    = TksLastInternal <$> mkEOF t
+mkTokens (t:ts) = (:|*) <$> mkBody t <*> mkTokens ts
+-- -----
