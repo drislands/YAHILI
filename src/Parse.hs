@@ -6,14 +6,12 @@ import Control.Monad.Writer
 import qualified Data.List.NonEmpty as NE
 
 import Language
-import Scan
 
 data ParseError =
     ParseError deriving (Show,Eq)
 
 type Parsing a = Writer [ParseError] a
 
-type Tokens = [Token]
 
 parenthesize :: String -> [Expression] -> String
 parenthesize name es =
