@@ -5,12 +5,14 @@ module Language
     , Token(..)
     , Expression(..)
     , Tokens
+    , head
+    , tail
     , mkTokens
     , pattern TksLast
     , pattern (:|)
     ) where
 
-
+import Prelude hiding (head,tail)
 
 data Token = Token 
     { getTokenType :: TokenType
@@ -78,6 +80,14 @@ data Tokens
     = TksLastInternal EOFToken
     | BodyToken :|* Tokens
     deriving (Show)
+
+head :: Tokens -> Token
+head (TksLastInternal eof) = getEOF eof
+head (b :|* _) = getBodyToken b
+
+tail :: Tokens -> Tokens
+tail e@(TksLastInternal _) = e
+tail (_ :|* rest) = rest
 
 pattern TksLast :: Token -> Tokens
 pattern TksLast t <- TksLastInternal (UnsafeEOFToken t)
