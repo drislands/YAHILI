@@ -14,6 +14,7 @@ module Language
     ) where
 
 import Prelude hiding (head,tail)
+import Data.Int
 
 data Token = Token 
     { getTokenType :: TokenType
@@ -115,5 +116,13 @@ data Value =
 instance Show Value where
     show (VString s)  = s
     show (VBoolean b) = show b
-    show (VNumber d)  = show d
+    show (VNumber d)  =
+        if isInteger d then show (truncate d :: Int64)
+        else show d
     show VNil         = "nil"
+
+isInteger :: Double -> Bool
+isInteger d
+    | isNaN d || isInfinite d   = False
+    | abs d >= 9007199254740992 = True
+    | otherwise                 = d == fromIntegral (truncate d :: Int64)
