@@ -6,6 +6,8 @@ module Language
     , Expression(..)
     , Tokens
     , Value(..)
+    , Statement(..)
+    , Program
     , head
     , tail
     , mkTokens
@@ -126,3 +128,12 @@ isInteger d
     | isNaN d || isInfinite d   = False
     | abs d >= 9007199254740992 = True
     | otherwise                 = d == fromIntegral (truncate d :: Int64)
+
+-- Statements!
+data Statement =
+    ExpressionStatement Expression |
+    PrintStatement      Expression
+    deriving (Show)
+
+type Program = [Statement]
+    

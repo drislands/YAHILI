@@ -65,6 +65,7 @@ executable yahili
                      ,Language
                      ,Parse
                      ,Expression
+                     ,Statement
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
