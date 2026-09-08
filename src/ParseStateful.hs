@@ -37,7 +37,10 @@ parse :: Tokens -> Writer [ParseError] Expression
 parse = evalStateT parseExpression
 
 parseExpression :: Parsing Expression
-parseExpression = parseEquality
+parseExpression = parseComma
+
+parseComma :: Parsing Expression
+parseComma = parseBinary parseEquality [Lx_Comma]
 
 parseEquality :: Parsing Expression
 parseEquality = parseBinary parseComparison [Lx_BangEqual,Lx_EqualEqual]
