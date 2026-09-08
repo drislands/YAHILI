@@ -9,7 +9,7 @@ import Control.Monad
 import System.Exit (exitWith, ExitCode (ExitFailure))
 import Scan (tokensFromSource, LexError (..))
 import Parse
-import Evaluate
+import Expression
 import Language(mkTokens, Token (getLineNum, getTokenType, getLexeme), TokenType (Lx_EOF))
 import Control.Monad.Writer (runWriter)
 

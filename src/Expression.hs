@@ -1,6 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 
-module Evaluate where
+module Expression where
 
 import Language
 
