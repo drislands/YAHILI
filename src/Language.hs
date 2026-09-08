@@ -5,6 +5,7 @@ module Language
     , Token(..)
     , Expression(..)
     , Tokens
+    , Value(..)
     , head
     , tail
     , mkTokens
@@ -103,3 +104,10 @@ mkTokens []     = Nothing
 mkTokens [t]    = TksLastInternal <$> mkEOF t
 mkTokens (t:ts) = (:|*) <$> mkBody t <*> mkTokens ts
 -- -----
+
+data Value =
+    VString  String |
+    VBoolean Bool   |
+    VNumber  Double |
+    VNil
+    deriving (Eq,Ord,Show)
