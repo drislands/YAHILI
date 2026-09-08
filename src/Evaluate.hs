@@ -4,8 +4,8 @@ module Evaluate where
 
 import Language
 
-import Control.Monad.State (StateT)
-import Control.Monad.Except (Except, MonadError (throwError))
+import Control.Monad.State (StateT (runStateT))
+import Control.Monad.Except (Except, MonadError (throwError), runExcept)
 import Data.Map (Map)
 import qualified Data.Map as Map
 
@@ -17,8 +17,13 @@ type Variables = Map.Map String Value
 
 type Evaluating a = StateT Variables (Except EvalError) a
 
-evaluate :: Expression -> Evaluating Value
-evaluate = \case
+evaluate :: Expression -> Either EvalError (Value,Variables)
+evaluate ex = 
+    let result = evaluateInner ex
+    in  runExcept (runStateT result Map.empty)
+
+evaluateInner :: Expression -> Evaluating Value
+evaluateInner = \case
     -- Literals
     LString  s -> pure $ VString  s
     LBoolean b -> pure $ VBoolean b
@@ -26,19 +31,19 @@ evaluate = \case
     LNil       -> pure $ VNil
     -- Expressions!
     Binary left op right -> evaluateBinary left op right
-    Grouping e -> evaluate e
+    Grouping e -> evaluateInner e
     Unary op right -> evaluateUnary op right
 
 evaluateUnary :: Token -> Expression -> Evaluating Value
 evaluateUnary op right = do
     case getTokenType op of
         Lx_Minus -> do
-            r <- evaluate right
+            r <- evaluateInner right
             case r of
                 VNumber d -> pure $ VNumber (0 - d)
                 _ -> throwError $ EvalError op "Operand must be a number."
         Lx_Bang  -> do
-            r <- evaluate right
+            r <- evaluateInner right
             pure $ VBoolean ((not . truthy) r)
         _ -> throwError $ EvalError op "Invalid unary operator."
 
@@ -68,8 +73,8 @@ evaluateBinary left op right = case lookupOp (getTokenType op) of
 -- Binary functions
 evaluateBinaryValues :: ((Value,Value) -> Evaluating Value) -> Expression -> Expression -> Evaluating Value
 evaluateBinaryValues f left right = do
-    l <- evaluate left
-    r <- evaluate right
+    l <- evaluateInner left
+    r <- evaluateInner right
     f (l,r)
 
 -- Math (and string concatenation)

@@ -9,6 +9,7 @@ import Control.Monad
 import System.Exit (exitWith, ExitCode (ExitFailure))
 import Scan (tokensFromSource, LexError (..))
 import Parse
+import Evaluate
 import Language(mkTokens, Token (getLineNum, getTokenType, getLexeme), TokenType (Lx_EOF))
 import Control.Monad.Writer (runWriter)
 
@@ -76,8 +77,14 @@ run source = do
 
                 pure False
             else do
-                putStrLn $ uglyPrint e
-                pure True
+                case evaluate e of
+                    Left (EvalError t msg) -> do
+                        let ln = getLineNum t
+                        loxError ln msg
+                        pure False
+                    Right (val,_) -> do
+                        putStrLn $ "Result: " <> show val
+                        pure True
         Nothing -> do
             putStrLn "The list of tokens does not end in EOF! How'd that happen?"
             pure False
