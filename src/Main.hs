@@ -10,8 +10,9 @@ import System.Exit (exitWith, ExitCode (ExitFailure))
 import Scan (tokensFromSource, LexError (..))
 import Parse
 import Expression
-import Language(mkTokens, Token (getLineNum, getTokenType, getLexeme), TokenType (Lx_EOF))
+import Language(mkTokens, Token (getLineNum, getTokenType, getLexeme), TokenType (Lx_EOF), Statement (..))
 import Control.Monad.Writer (runWriter)
+import qualified Data.Map as Map
 
 main :: IO ()
 main = do
@@ -76,7 +77,7 @@ run source = do
                             loxReport ln (" at '" <> lx <> "'") message
                 pure $ Just 65
             else do
-                case evaluate e of
+                case evaluate Map.empty e of
                     Left er -> do
                         runtimeError er
                         pure $ Just 70
@@ -86,6 +87,25 @@ run source = do
         Nothing -> do
             putStrLn "The list of tokens does not end in EOF! How'd that happen?"
             pure $ Just 65
+
+-- The meat.
+interpret :: Variables -> Statement -> IO Variables
+interpret vars = \case
+    PrintStatement e ->
+        case evaluate vars e of
+            Left er -> do
+                runtimeError er
+                pure vars
+            Right (val,vars') -> do
+                putStrLn $ show val
+                pure vars'
+    ExpressionStatement e ->
+        case evaluate vars e of
+            Left er -> do
+                runtimeError er
+                pure vars
+            Right (_,vars') -> do
+                pure vars'
 
 
 -- Error stuff.

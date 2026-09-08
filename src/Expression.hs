@@ -17,10 +17,10 @@ type Variables = Map.Map String Value
 
 type Evaluating a = StateT Variables (Except EvalError) a
 
-evaluate :: Expression -> Either EvalError (Value,Variables)
-evaluate ex = 
+evaluate :: Variables -> Expression -> Either EvalError (Value,Variables)
+evaluate vars ex = 
     let result = evaluateInner ex
-    in  runExcept (runStateT result Map.empty)
+    in  runExcept (runStateT result vars)
 
 evaluateInner :: Expression -> Evaluating Value
 evaluateInner = \case
