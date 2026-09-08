@@ -76,7 +76,7 @@ run source = do
 
                 pure False
             else do
-                putStrLn $ show e
+                putStrLn $ uglyPrint e
                 pure True
         Nothing -> do
             putStrLn "The list of tokens does not end in EOF! How'd that happen?"
