@@ -9,6 +9,8 @@ import Control.Monad.State
 -- import GHC.Pre
 
 import Language
+import Control.Monad (when, unless)
+import Data.Maybe (isNothing)
 
 data ParseError =
     ParseError Token String 
@@ -74,14 +76,19 @@ parsePrimary :: Parsing Expression
 parsePrimary = do
     t <- peek
     case matchLit t of
-        Just e  -> pure e
+        Just e  -> do
+            advance
+            pure e
         Nothing -> do
             match [Lx_LeftParen] >>= \case
                 Just _ -> do
                     e <- parseExpression
                     consume Lx_RightParen "Expect ')' after expression."
                     pure e
-                Nothing -> undefined
+                Nothing -> do
+                    e <- peek
+                    lift $ tell [ParseError e "Expect expression."]
+                    pure LNil
 
   where
     matchLit :: Token -> Maybe Expression
@@ -106,9 +113,6 @@ match types = do
         pure (Just t)
     else pure Nothing
 
-previous :: Parsing Token
-previous = undefined
-
 advance :: Parsing ()
 advance = do
     rest <- get
@@ -127,4 +131,28 @@ peek = do
     pure $ head tokens
 
 -- Error handling!
-consume = undefined
+consume :: TokenType -> String -> Parsing ()
+consume tt message = do
+    matched <- match [tt]
+    when (isNothing matched) $ do
+        bad <- peek
+        lift $ tell [ParseError bad message]
+        -- synchronize
+
+synchronize :: Parsing ()
+synchronize = do
+    advance
+    t <- peek
+    unless (statementTerm t) synchronize
+  where
+    statementTerm :: Token -> Bool
+    statementTerm t = getTokenType t `elem` 
+        [ Lx_Class
+        , Lx_Fun
+        , Lx_Var
+        , Lx_If
+        , Lx_While
+        , Lx_Print
+        , Lx_Return
+        ]
+
