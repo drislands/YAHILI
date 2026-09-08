@@ -56,16 +56,8 @@ data Expression =
     LBoolean Bool                        | -- true, false
     LNumber  Double                      | -- 4, 4.3, etc
     LNil                                   -- nil
+    deriving (Show)
     -- TODO: Variables?
-
-instance Show Expression where
-    show (Binary e1 t e2) = unwords ["(",show e1,show t,show e2,")"]
-    show (Grouping e)     = unwords ["(",show e,")"]
-    show (Unary t e)      = unwords ["(",getLexeme t,show e,")"]
-    show (LString s)      = "\"" <> s <> "\""
-    show (LBoolean b)     = show b
-    show (LNumber d)      = show d
-    show LNil             = "nil"
 
 -- -----
 -- Specialized token list handling to guarantee that every list
