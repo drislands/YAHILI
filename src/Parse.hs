@@ -2,15 +2,21 @@
 
 module Parse where
 
+import Prelude hiding (head,tail)
+
 import Control.Monad.Writer
+import Control.Monad.State
+-- import GHC.Pre
 
 import Language
+import Control.Monad (when, unless)
+import Data.Maybe (isNothing)
 
 data ParseError =
-    ParseError (Maybe Token) String 
+    ParseError Token String 
     deriving (Show)
 
-type Parsing a = Writer [ParseError] a
+type Parsing a = StateT Tokens (Writer [ParseError]) a
 
 
 parenthesize :: String -> [Expression] -> String
@@ -27,45 +33,66 @@ uglyPrint = \case
     LBoolean b             -> show b 
     LNumber  n             -> show n
 
-parse :: Tokens -> Parsing Expression
-parse tokens = do
-    (ex,_) <- parseExpression tokens
-    pure ex
+parse :: Tokens -> Writer [ParseError] Expression
+parse = evalStateT parseExpression
 
-parseExpression :: Tokens -> Parsing (Expression,Tokens)
+parseExpression :: Parsing Expression
 parseExpression = parseEquality
 
-parseEquality :: Tokens -> Parsing (Expression,Tokens)
+parseEquality :: Parsing Expression
 parseEquality = parseBinary parseComparison [Lx_BangEqual,Lx_EqualEqual]
 
-parseComparison :: Tokens -> Parsing (Expression,Tokens)
+parseComparison :: Parsing Expression
 parseComparison = parseBinary parseTerm [Lx_Greater,Lx_GreaterEqual,Lx_Less,Lx_LessEqual]
 
-parseTerm :: Tokens -> Parsing (Expression, Tokens)
+parseTerm :: Parsing Expression
 parseTerm = parseBinary parseFactor [Lx_Minus,Lx_Plus]
 
-parseFactor :: Tokens -> Parsing (Expression, Tokens)
+parseFactor :: Parsing Expression
 parseFactor = parseBinary parseUnary [Lx_Slash,Lx_Star]
 
-parseUnary :: Tokens -> Parsing (Expression, Tokens)
-parseUnary tokens = 
-    case tokens of
-        t :| rest | getTokenType t `elem` [Lx_Bang,Lx_Minus] -> do
-            (next,tokens') <- parseUnary rest
-            pure (Unary t next,tokens')
-        _ -> parsePrimary tokens
+parseBinary :: Parsing Expression -> [TokenType] -> Parsing Expression
+parseBinary nextFunc types = do
+    left <- nextFunc
+    loop left
+  where
+    loop :: Expression -> Parsing Expression
+    loop expr = do
+        match types >>= \case
+            Just t -> do
+                right <- nextFunc
+                loop (Binary expr t right)
+            Nothing -> pure expr
 
-parsePrimary :: Tokens -> Parsing (Expression, Tokens)
-parsePrimary tokens = 
-    case tokens of
-        t :| rest -> case match t of
-            Just p -> pure (p,rest)
-            _      -> undefined -- TODO!
-        _ -> undefined          -- TODO!
+parseUnary :: Parsing Expression
+parseUnary = do
+    match [Lx_Bang,Lx_Minus] >>= \case
+        Just t -> do
+            right <- parseUnary
+            pure $ Unary t right
+        Nothing -> parsePrimary
+
+parsePrimary :: Parsing Expression
+parsePrimary = do
+    t <- peek
+    case matchLit t of
+        Just e  -> do
+            advance
+            pure e
+        Nothing -> do
+            match [Lx_LeftParen] >>= \case
+                Just _ -> do
+                    e <- parseExpression
+                    consume Lx_RightParen "Expect ')' after expression."
+                    pure e
+                Nothing -> do
+                    e <- peek
+                    lift $ tell [ParseError e "Expect expression."]
+                    pure LNil
 
   where
-    match :: Token -> Maybe Expression
-    match t = 
+    matchLit :: Token -> Maybe Expression
+    matchLit t =
         let tt = getTokenType t
             tl = getLexeme    t
         in  case tt of
@@ -75,44 +102,57 @@ parsePrimary tokens =
             Lx_String    -> Just (LString tl)
             Lx_Number    -> Just (LNumber (read tl))
             _            -> Nothing
-    
+
+
+-- Helper stateful functions.
+match :: [TokenType] -> Parsing (Maybe Token)
+match types = do
+    t <- peek
+    if getTokenType t `elem` types then do
+        advance
+        pure (Just t)
+    else pure Nothing
+
+advance :: Parsing ()
+advance = do
+    rest <- get
+    put $ tail rest
+
+atEnd :: Parsing Bool
+atEnd = do
+    ts <- get
+    case ts of
+        TksLast _ -> pure True
+        _         -> pure False
+
+peek :: Parsing Token
+peek = do
+    tokens <- get
+    pure $ head tokens
+
 -- Error handling!
-consume :: Tokens -> TokenType -> String-> Parsing Tokens
-consume tokens tt errMsg = do
-    case tokens of
-        t :| rest | getTokenType t == tt -> pure rest
-                            | otherwise            -> error' (Just t) errMsg True tokens
-        _                                          -> error' Nothing  errMsg True tokens
+consume :: TokenType -> String -> Parsing ()
+consume tt message = do
+    matched <- match [tt]
+    when (isNothing matched) $ do
+        bad <- peek
+        lift $ tell [ParseError bad message]
+        -- synchronize
 
--- TODO: entering panic mode!
-error' :: Maybe Token -> String -> Bool -> Tokens -> Parsing Tokens
-error' t message panic rest = do
-    tell [ParseError t message]
-    if panic then synchronize rest else undefined
-
-
-synchronize :: Tokens -> Parsing Tokens
-synchronize tokens = undefined
-
-
--- For Binary expressions, the form is ultimately the same: call the next function up in the
--- precedence ladder, then possibly loop on the results depending on if this function's
--- operator is found.
-parseBinary :: (Tokens -> Parsing (Expression,Tokens)) -> [TokenType] -> Tokens -> Parsing (Expression,Tokens)
-parseBinary nextFunc types tokens = do
-    (left,tokens') <- nextFunc tokens
-    loop left tokens'
+synchronize :: Parsing ()
+synchronize = do
+    advance
+    t <- peek
+    unless (statementTerm t) synchronize
   where
-    loop :: Expression -> Tokens -> Parsing (Expression,Tokens)
-    loop expr ts = case ts of
-        t :| rest | getTokenType t `elem` types -> do
-            (right,ts') <- nextFunc rest
-            loop (Binary expr t right) ts'
-        _ -> pure (expr,ts)
+    statementTerm :: Token -> Bool
+    statementTerm t = getTokenType t `elem` 
+        [ Lx_Class
+        , Lx_Fun
+        , Lx_Var
+        , Lx_If
+        , Lx_While
+        , Lx_Print
+        , Lx_Return
+        ]
 
--- -- For our purposes, hitting an EOF is the same as hitting the end of the list.
--- empty :: Tokens -> Maybe (NE.NonEmpty Token)
--- empty ts = case NE.nonEmpty ts of
---     Nothing -> Nothing
---     Just ts'@(t NE.:| _) | getTokenType t == Lx_EOF -> Nothing
---                          | otherwise      -> Just ts'

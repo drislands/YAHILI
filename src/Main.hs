@@ -8,8 +8,8 @@ import qualified Data.List.NonEmpty as NE
 import Control.Monad
 import System.Exit (exitWith, ExitCode (ExitFailure))
 import Scan (tokensFromSource, LexError (..))
-import Parse (parse, ParseError (ParseError))
-import Language(mkTokens)
+import Parse
+import Language(mkTokens, Token (getLineNum, getTokenType, getLexeme), TokenType (Lx_EOF))
 import Control.Monad.Writer (runWriter)
 
 main :: IO ()
@@ -65,12 +65,18 @@ run source = do
             let parsed = parse tokens
                 (e,parseErrors) = runWriter parsed
             if (not . null) parseErrors then do
-                -- forM_ parseErrors $ \case
-                    -- ParseError (Just t) message -> do
+                forM_ parseErrors $ \case
+                    ParseError t message -> do
+                        let ln = getLineNum t
+                            lx = getLexeme  t
+                        if getTokenType t == Lx_EOF then
+                            loxReport ln " at end" message
+                        else
+                            loxReport ln (" at '" <> lx <> "'") message
 
                 pure False
             else do
-                putStrLn $ show e
+                putStrLn $ uglyPrint e
                 pure True
         Nothing -> do
             putStrLn "The list of tokens does not end in EOF! How'd that happen?"
