@@ -42,13 +42,13 @@ runFile file = do
     if not exists then usage else do
         handle <- openFile file ReadMode
         contents <- hGetContents handle
-        succeeded <- run contents
-        unless succeeded $ exitWith (ExitFailure 65)
+        exitCode <- run contents
+        maybe (pure ()) (exitWith . ExitFailure) exitCode
 
 usage :: IO ()
 usage = putStrLn "Usage: yahili [script]"
 
-run :: String -> IO Bool
+run :: String -> IO (Maybe Int)
 run source = do
     let scanned = tokensFromSource source
 
@@ -60,7 +60,7 @@ run source = do
                 UnexpectedChar     n c -> loxError n $ "Unexpected character:  " <> [c]
                 UnterminatedString n   -> loxError n $ "Unterminated string starting on line " <> show n
                 UnclosedComment    n   -> loxError n $ "Unclosed comment starting on line " <> show n
-        pure False
+        pure $ Just 65
     else case mkTokens mtokens of
         Just tokens -> do
             let parsed = parse tokens
@@ -74,20 +74,18 @@ run source = do
                             loxReport ln " at end" message
                         else
                             loxReport ln (" at '" <> lx <> "'") message
-
-                pure False
+                pure $ Just 65
             else do
                 case evaluate e of
-                    Left (EvalError t msg) -> do
-                        let ln = getLineNum t
-                        loxError ln msg
-                        pure False
+                    Left er -> do
+                        runtimeError er
+                        pure $ Just 70
                     Right (val,_) -> do
                         putStrLn $ "Result: " <> show val
-                        pure True
+                        pure Nothing
         Nothing -> do
             putStrLn "The list of tokens does not end in EOF! How'd that happen?"
-            pure False
+            pure $ Just 65
 
 
 -- Error stuff.
@@ -97,3 +95,7 @@ loxError lineNum message = loxReport lineNum "" message
 loxReport :: Int -> String -> String -> IO ()
 loxReport lineNum where' message = do
     hPutStrLn stderr $ "[line " <> show lineNum <> "] Error" <> where' <> ": " <> message
+
+runtimeError :: EvalError -> IO ()
+runtimeError (EvalError t msg) = do
+    hPutStrLn stderr $ msg <> "\n[line " <> show (getLineNum t) <> "]"
