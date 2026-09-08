@@ -32,6 +32,8 @@ data TokenType =
     Lx_LeftParen  | Lx_RightParen   | Lx_LeftBrace | Lx_RightBrace |
     Lx_Comma      | Lx_Dot          | Lx_Minus     | Lx_Plus       |
     Lx_Semicolon  | Lx_Slash        | Lx_Star      |
+    -- Challenge 6.2
+    Lx_Colon      | Lx_Question     |
     -- Single and double
     Lx_Bang       | Lx_BangEqual    | Lx_Equal     | Lx_EqualEqual |
     Lx_Greater    | Lx_GreaterEqual | Lx_Less      | Lx_LessEqual  |
@@ -48,6 +50,7 @@ data TokenType =
 
 data Expression =
     -- Recursive expressions
+    Ternary  Expression Token Expression Token Expression | -- condition ? whentrue : whenfalse, currently
     Binary   Expression Token Expression | -- 4 + 3, i * j, etc
     Grouping Expression                  | -- ( 4 ), ( 4 + 3), etc
     Unary    Token Expression            | -- - 4, etc
@@ -56,16 +59,8 @@ data Expression =
     LBoolean Bool                        | -- true, false
     LNumber  Double                      | -- 4, 4.3, etc
     LNil                                   -- nil
+    deriving (Show)
     -- TODO: Variables?
-
-instance Show Expression where
-    show (Binary e1 t e2) = unwords ["(",show e1,show t,show e2,")"]
-    show (Grouping e)     = unwords ["(",show e,")"]
-    show (Unary t e)      = unwords ["(",getLexeme t,show e,")"]
-    show (LString s)      = "\"" <> s <> "\""
-    show (LBoolean b)     = show b
-    show (LNumber d)      = show d
-    show LNil             = "nil"
 
 -- -----
 -- Specialized token list handling to guarantee that every list

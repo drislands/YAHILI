@@ -67,6 +67,9 @@ tokensFromSource' (ts,n,s) = do
         '+' -> tok Lx_Plus       [x] xs
         ';' -> tok Lx_Semicolon  [x] xs
         '*' -> tok Lx_Star       [x] xs
+        -- Challenge 6.2
+        '?' -> tok Lx_Question   [x] xs
+        ':' -> tok Lx_Colon      [x] xs
 
         -- Possibly-two-character tokens
         '!' -> match '=' Lx_BangEqual    Lx_Bang    xs

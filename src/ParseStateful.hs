@@ -25,13 +25,14 @@ parenthesize name es =
 
 uglyPrint :: Expression -> String
 uglyPrint = \case
-    Binary   left op right -> parenthesize (getLexeme op) [left,right]
-    Grouping e             -> parenthesize "group" [e]
-    Unary    op e          -> parenthesize (getLexeme op) [e]
-    LNil                   -> "nil"
-    LString  s             -> s
-    LBoolean b             -> show b 
-    LNumber  n             -> show n
+    Ternary  left op1 mid op2 right -> parenthesize (getLexeme op1 <> getLexeme op2) [left,mid,right]
+    Binary   left op right          -> parenthesize (getLexeme op) [left,right]
+    Grouping e                      -> parenthesize "group" [e]
+    Unary    op e                   -> parenthesize (getLexeme op) [e]
+    LNil                            -> "nil"
+    LString  s                      -> s
+    LBoolean b                      -> show b 
+    LNumber  n                      -> show n
 
 parse :: Tokens -> Writer [ParseError] Expression
 parse = evalStateT parseExpression
@@ -40,7 +41,25 @@ parseExpression :: Parsing Expression
 parseExpression = parseComma
 
 parseComma :: Parsing Expression
-parseComma = parseBinary parseEquality [Lx_Comma]
+parseComma = parseBinary parseTernary [Lx_Comma]
+
+parseTernary :: Parsing Expression
+parseTernary = do
+    left <- parseEquality
+    mq   <- match [Lx_Question]
+    case mq of
+        Just q -> do
+            mid <- parseTernary
+            mc  <- match [Lx_Colon]
+            case mc of
+                Just c -> do
+                    right <- parseTernary
+                    pure $ Ternary left q mid c right
+                Nothing -> do
+                    e <- peek
+                    lift $ tell [ParseError e "Expect ':' after expression."]
+                    pure LNil
+        Nothing -> pure left
 
 parseEquality :: Parsing Expression
 parseEquality = parseBinary parseComparison [Lx_BangEqual,Lx_EqualEqual]
