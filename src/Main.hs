@@ -13,6 +13,7 @@ import Expression
 import Language(mkTokens, Token (getLineNum, getTokenType, getLexeme), TokenType (Lx_EOF), Statement (..))
 import Control.Monad.Writer (runWriter)
 import qualified Data.Map as Map
+import Statement
 
 main :: IO ()
 main = do
@@ -64,8 +65,8 @@ run source = do
         pure $ Just 65
     else case mkTokens mtokens of
         Just tokens -> do
-            let parsed = parse tokens
-                (e,parseErrors) = runWriter parsed
+            let parsed = parseProgram tokens
+                (p,parseErrors) = runWriter parsed
             if (not . null) parseErrors then do
                 forM_ parseErrors $ \case
                     ParseError t message -> do
@@ -77,35 +78,35 @@ run source = do
                             loxReport ln (" at '" <> lx <> "'") message
                 pure $ Just 65
             else do
-                case evaluate Map.empty e of
-                    Left er -> do
-                        runtimeError er
-                        pure $ Just 70
-                    Right (val,_) -> do
-                        putStrLn $ "Result: " <> show val
-                        pure Nothing
+                vars <- foldM interpret (Just Map.empty) p
+                case vars of
+                    Nothing -> pure $ Just 70
+                    _       -> pure Nothing
         Nothing -> do
             putStrLn "The list of tokens does not end in EOF! How'd that happen?"
             pure $ Just 65
 
 -- The meat.
-interpret :: Variables -> Statement -> IO Variables
-interpret vars = \case
-    PrintStatement e ->
-        case evaluate vars e of
-            Left er -> do
-                runtimeError er
-                pure vars
-            Right (val,vars') -> do
-                putStrLn $ show val
-                pure vars'
-    ExpressionStatement e ->
-        case evaluate vars e of
-            Left er -> do
-                runtimeError er
-                pure vars
-            Right (_,vars') -> do
-                pure vars'
+interpret :: Maybe Variables -> Statement -> IO (Maybe Variables)
+interpret mvars st = do
+    case mvars of
+        Nothing -> pure Nothing
+        Just vars -> case st of
+            PrintStatement e ->
+                case evaluate vars e of
+                    Left er -> do
+                        runtimeError er
+                        pure $ Just vars
+                    Right (val,vars') -> do
+                        putStrLn $ show val
+                        pure $ Just vars'
+            ExpressionStatement e ->
+                case evaluate vars e of
+                    Left er -> do
+                        runtimeError er
+                        pure $ Just vars
+                    Right (_,vars') -> do
+                        pure $ Just vars'
 
 
 -- Error stuff.
