@@ -5,15 +5,17 @@ module Evaluate where
 import Language
 
 import Control.Monad.State (StateT)
-import Control.Monad.Writer
+import Control.Monad.Except (Except, MonadError (throwError))
 import Data.Map (Map)
 import qualified Data.Map as Map
 
 
-data EvalError = EvalError
+data EvalError = 
+    EvalError Token String
+    deriving (Show)
 type Variables = Map.Map String Value
 
-type Evaluating a = StateT Variables (Writer [EvalError]) a
+type Evaluating a = StateT Variables (Except EvalError) a
 
 evaluate :: Expression -> Evaluating Value
 evaluate = \case
@@ -34,20 +36,18 @@ evaluateUnary op right = do
             r <- evaluate right
             case r of
                 VNumber d -> pure $ VNumber (0 - d)
-                _ -> undefined
+                _ -> throwError $ EvalError op "Operand must be a number."
         Lx_Bang  -> do
             r <- evaluate right
             pure $ VBoolean ((not . truthy) r)
-        _ -> undefined
+        _ -> throwError $ EvalError op "Invalid unary operator."
 
 evaluateBinary :: Expression -> Token -> Expression -> Evaluating Value
 evaluateBinary left op right = case lookupOp (getTokenType op) of
-    Just f -> f left right
-    Nothing -> do
-        lift $ tell [EvalError]
-        pure VNil
+    Just f -> f op left right
+    Nothing -> throwError $ EvalError op "Invalid binary operator."
   where
-    lookupOp :: TokenType -> Maybe (Expression -> Expression -> Evaluating Value)
+    lookupOp :: TokenType -> Maybe (Token -> Expression -> Expression -> Evaluating Value)
     lookupOp = \case
         -- Term
         Lx_Plus         -> Just evaluatePlus
@@ -73,34 +73,34 @@ evaluateBinaryValues f left right = do
     f (l,r)
 
 -- Math (and string concatenation)
-evaluatePlus :: Expression -> Expression -> Evaluating Value
-evaluatePlus = evaluateBinaryValues $ \case
+evaluatePlus :: Token -> Expression -> Expression -> Evaluating Value
+evaluatePlus op = evaluateBinaryValues $ \case
     (VNumber v1,VNumber v2) -> pure $ VNumber (v1+v2)
     (VString s1,VString s2) -> pure $ VString (s1<>s2)
-    _ -> undefined
+    _ -> throwError $ EvalError op "Operands must be two numbers or two strings."
 
-evaluateMinus :: Expression -> Expression -> Evaluating Value
-evaluateMinus = evaluateBinaryValues $ \case
+evaluateMinus :: Token -> Expression -> Expression -> Evaluating Value
+evaluateMinus op = evaluateBinaryValues $ \case
     (VNumber v1,VNumber v2) -> pure $ VNumber (v1-v2)
-    _ -> undefined
+    _ -> throwError $ EvalError op "Operands must be two numbers."
 
-evaluateStar :: Expression -> Expression -> Evaluating Value
-evaluateStar = evaluateBinaryValues $ \case
+evaluateStar :: Token -> Expression -> Expression -> Evaluating Value
+evaluateStar op = evaluateBinaryValues $ \case
     (VNumber v1,VNumber v2) -> pure $ VNumber (v1*v2)
-    _ -> undefined
+    _ -> throwError $ EvalError op "Operands must be two numbers."
 
-evaluateSlash :: Expression -> Expression -> Evaluating Value
-evaluateSlash = evaluateBinaryValues $ \case
-    (VNumber _,VNumber 0)  -> undefined
+evaluateSlash :: Token -> Expression -> Expression -> Evaluating Value
+evaluateSlash op = evaluateBinaryValues $ \case
+    (VNumber _,VNumber 0)  -> throwError $ EvalError op "Cannot divide by zero."
     (VNumber v1,VNumber v2) -> pure $ VNumber (v1/v2)
-    _ -> undefined
+    _ -> throwError $ EvalError op "Operands must be two numbers."
 
 -- Boolean logic
-evaluateEquality :: Expression -> Expression -> Evaluating Value
-evaluateEquality = evaluateBinaryValues $ \(l,r) -> pure $ VBoolean(l == r)
+evaluateEquality :: Token -> Expression -> Expression -> Evaluating Value
+evaluateEquality _ = evaluateBinaryValues $ \(l,r) -> pure $ VBoolean(l == r)
 
-evaluateInequality :: Expression -> Expression -> Evaluating Value
-evaluateInequality = evaluateBinaryValues $ \(l,r) -> pure $ VBoolean(l /= r)
+evaluateInequality :: Token -> Expression -> Expression -> Evaluating Value
+evaluateInequality _ = evaluateBinaryValues $ \(l,r) -> pure $ VBoolean(l /= r)
 
 -- Nil is false, False is false, everything else is true.
 truthy :: Value -> Bool
@@ -110,22 +110,22 @@ truthy = \case
     _          -> True
 
 -- Number comparison
-evaluateLess :: Expression -> Expression -> Evaluating Value
-evaluateLess = evaluateBinaryValues $ \case
+evaluateLess :: Token -> Expression -> Expression -> Evaluating Value
+evaluateLess op = evaluateBinaryValues $ \case
     (VNumber v1,VNumber v2) -> pure $ VBoolean (v1 < v2)
-    _ -> undefined
+    _ -> throwError $ EvalError op "Operands must be two numbers."
 
-evaluateLessEqual :: Expression -> Expression -> Evaluating Value
-evaluateLessEqual = evaluateBinaryValues $ \case
+evaluateLessEqual :: Token -> Expression -> Expression -> Evaluating Value
+evaluateLessEqual op = evaluateBinaryValues $ \case
     (VNumber v1,VNumber v2) -> pure $ VBoolean (v1 <= v2)
-    _ -> undefined
+    _ -> throwError $ EvalError op "Operands must be two numbers."
 
-evaluateGreater :: Expression -> Expression -> Evaluating Value
-evaluateGreater = evaluateBinaryValues $ \case
+evaluateGreater :: Token -> Expression -> Expression -> Evaluating Value
+evaluateGreater op = evaluateBinaryValues $ \case
     (VNumber v1,VNumber v2) -> pure $ VBoolean (v1 > v2)
-    _ -> undefined
+    _ -> throwError $ EvalError op "Operands must be two numbers."
 
-evaluateGreaterEqual :: Expression -> Expression -> Evaluating Value
-evaluateGreaterEqual = evaluateBinaryValues $ \case
+evaluateGreaterEqual :: Token -> Expression -> Expression -> Evaluating Value
+evaluateGreaterEqual op = evaluateBinaryValues $ \case
     (VNumber v1,VNumber v2) -> pure $ VBoolean (v1 >= v2)
-    _ -> undefined
+    _ -> throwError $ EvalError op "Operands must be two numbers."

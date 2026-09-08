@@ -110,4 +110,10 @@ data Value =
     VBoolean Bool   |
     VNumber  Double |
     VNil
-    deriving (Eq,Ord,Show)
+    deriving (Eq,Ord)
+
+instance Show Value where
+    show (VString s)  = s
+    show (VBoolean b) = show b
+    show (VNumber d)  = show d
+    show VNil         = "nil"
