@@ -1,6 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 
-module ParseStateful where
+module Parse where
 
 import Prelude hiding (head,tail)
 

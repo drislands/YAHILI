@@ -8,7 +8,7 @@ import qualified Data.List.NonEmpty as NE
 import Control.Monad
 import System.Exit (exitWith, ExitCode (ExitFailure))
 import Scan (tokensFromSource, LexError (..))
-import ParseStateful
+import Parse
 import Language(mkTokens, Token (getLineNum, getTokenType, getLexeme), TokenType (Lx_EOF))
 import Control.Monad.Writer (runWriter)
 
