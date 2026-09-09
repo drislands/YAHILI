@@ -10,7 +10,6 @@ import Control.Monad.State
 
 import Language
 import Control.Monad (unless)
-import Data.Maybe (isNothing)
 
 data ParseError =
     ParseError Token String 

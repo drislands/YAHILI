@@ -4,16 +4,14 @@ module Expression where
 
 import Language
 
-import Control.Monad.State (StateT (runStateT))
+import Control.Monad.State (StateT (runStateT), MonadState (get))
 import Control.Monad.Except (Except, MonadError (throwError), runExcept)
-import Data.Map (Map)
-import qualified Data.Map as Map
+import Prelude hiding (lookup)
 
 
 data EvalError = 
     EvalError Token String
     deriving (Show)
-type Variables = Map.Map String Value
 
 type Evaluating a = StateT Variables (Except EvalError) a
 
@@ -33,7 +31,13 @@ evaluateInner = \case
     Binary left op right -> evaluateBinary left op right
     Grouping e -> evaluateInner e
     Unary op right -> evaluateUnary op right
-    Identifier t -> undefined
+    Identifier t -> do
+        let name = getLexeme t
+        vars <- get
+        case lookup name vars of
+            Just x -> pure x
+            Nothing -> throwError $ EvalError t 
+                ("Undefined variable '" <> name <> "'.")
 
 evaluateUnary :: Token -> Expression -> Evaluating Value
 evaluateUnary op right = do

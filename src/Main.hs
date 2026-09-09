@@ -10,7 +10,7 @@ import System.Exit (exitWith, ExitCode (ExitFailure))
 import Scan (tokensFromSource, LexError (..))
 import Parse
 import Expression
-import Language(mkTokens, Token (getLineNum, getTokenType, getLexeme), TokenType (Lx_EOF), Statement (..))
+import Language
 import Control.Monad.Writer (runWriter)
 import qualified Data.Map as Map
 import Statement
@@ -21,22 +21,24 @@ main = do
     let args' = NE.nonEmpty args
 
     case args' of
-        Nothing -> runPrompt
+        Nothing -> runPrompt Map.empty
         Just as -> case NE.length as of
             1 -> runFile (NE.head as)
             _ -> do 
                 usage 
                 exitWith (ExitFailure 64)
 
-runPrompt :: IO ()
-runPrompt = do
+runPrompt :: Variables -> IO ()
+runPrompt vars = do
     putStr " > "
     hFlush stdout
     done <- isEOF
     unless done $ do
         input <- getLine
-        _ <- run input
-        runPrompt
+        result <- run vars input
+        case result of
+            Left _      -> runPrompt vars
+            Right vars' -> runPrompt vars'
 
 runFile :: FilePath -> IO ()
 runFile file = do
@@ -44,14 +46,16 @@ runFile file = do
     if not exists then usage else do
         handle <- openFile file ReadMode
         contents <- hGetContents handle
-        exitCode <- run contents
-        maybe (pure ()) (exitWith . ExitFailure) exitCode
+        results <- run Map.empty contents
+        case results of
+            Left exitCode -> (exitWith . ExitFailure) exitCode
+            _             -> pure ()
 
 usage :: IO ()
 usage = putStrLn "Usage: yahili [script]"
 
-run :: String -> IO (Maybe Int)
-run source = do
+run :: Variables -> String -> IO (Either Int Variables)
+run vars source = do
     let scanned = tokensFromSource source
 
         (mtokens,scanErrors) = runWriter scanned 
@@ -62,7 +66,7 @@ run source = do
                 UnexpectedChar     n c -> loxError n $ "Unexpected character:  " <> [c]
                 UnterminatedString n   -> loxError n $ "Unterminated string starting on line " <> show n
                 UnclosedComment    n   -> loxError n $ "Unclosed comment starting on line " <> show n
-        pure $ Just 65
+        pure $ Left 65
     else case mkTokens mtokens of
         Just tokens -> do
             let parsed = parseProgram tokens
@@ -76,15 +80,15 @@ run source = do
                             loxReport ln " at end" message
                         else
                             loxReport ln (" at '" <> lx <> "'") message
-                pure $ Just 65
+                pure $ Left 65
             else do
-                vars <- foldM interpret (Just Map.empty) p
-                case vars of
-                    Nothing -> pure $ Just 70
-                    _       -> pure Nothing
+                mvars <- foldM interpret (Just vars) p
+                case mvars of
+                    Nothing    -> pure $ Left 70
+                    Just vars' -> pure $ Right vars'
         Nothing -> do
             putStrLn "The list of tokens does not end in EOF! How'd that happen?"
-            pure $ Just 65
+            pure $ Left 65
 
 -- The meat.
 interpret :: Maybe Variables -> Statement -> IO (Maybe Variables)
@@ -92,12 +96,18 @@ interpret mvars st = do
     case mvars of
         Nothing -> pure Nothing
         Just vars -> case st of
-            VarDeclaration name e -> undefined
+            VarDeclaration name e -> do
+                case evaluate vars e of
+                    Left er -> do
+                        runtimeError er
+                        pure Nothing
+                    Right (val,vars') -> do
+                        pure $ Just (define name val vars')
             PrintStatement e ->
                 case evaluate vars e of
                     Left er -> do
                         runtimeError er
-                        pure $ Just vars
+                        pure Nothing
                     Right (val,vars') -> do
                         putStrLn $ show val
                         pure $ Just vars'
@@ -105,7 +115,7 @@ interpret mvars st = do
                 case evaluate vars e of
                     Left er -> do
                         runtimeError er
-                        pure $ Just vars
+                        pure Nothing
                     Right (_,vars') -> do
                         pure $ Just vars'
 

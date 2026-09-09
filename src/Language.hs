@@ -5,6 +5,9 @@ module Language
     , Token(..)
     , Expression(..)
     , Tokens
+    , Variables
+    , define
+    , lookup
     , Value(..)
     , Statement(..)
     , Program
@@ -15,8 +18,9 @@ module Language
     , pattern (:|)
     ) where
 
-import Prelude hiding (head,tail)
+import Prelude hiding (head,tail,lookup)
 import Data.Int
+import qualified Data.Map as Map
 
 data Token = Token 
     { getTokenType :: TokenType
@@ -63,6 +67,14 @@ data Expression =
     -- Variables!
     Identifier Token
     deriving (Show)
+
+type Variables = Map.Map String Value
+
+define :: String -> Value -> Variables -> Variables
+define = Map.insert
+
+lookup :: String -> Variables -> Maybe Value
+lookup = Map.lookup
 
 -- -----
 -- Specialized token list handling to guarantee that every list
