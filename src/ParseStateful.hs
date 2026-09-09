@@ -49,16 +49,10 @@ parseTernary = do
     mq   <- match [Lx_Question]
     case mq of
         Just q -> do
-            mid <- parseTernary
-            mc  <- match [Lx_Colon]
-            case mc of
-                Just c -> do
-                    right <- parseTernary
-                    pure $ Ternary left q mid c right
-                Nothing -> do
-                    e <- peek
-                    lift $ tell [ParseError e "Expect ':' after expression."]
-                    pure LNil
+            mid   <- parseTernary
+            c     <- consume Lx_Colon "Expect ':' after expression."
+            right <- parseTernary
+            pure $ Ternary left q mid c right
         Nothing -> pure left
 
 parseEquality :: Parsing Expression
