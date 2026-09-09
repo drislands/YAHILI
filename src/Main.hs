@@ -21,7 +21,7 @@ main = do
     let args' = NE.nonEmpty args
 
     case args' of
-        Nothing -> runPrompt Map.empty
+        Nothing -> runPrompt [Map.empty]
         Just as -> case NE.length as of
             1 -> runFile (NE.head as)
             _ -> do 
@@ -46,7 +46,7 @@ runFile file = do
     if not exists then usage else do
         handle <- openFile file ReadMode
         contents <- hGetContents handle
-        results <- run Map.empty contents
+        results <- run [Map.empty] contents
         case results of
             Left exitCode -> (exitWith . ExitFailure) exitCode
             _             -> pure ()

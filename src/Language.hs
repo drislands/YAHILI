@@ -6,6 +6,7 @@ module Language
     , Expression(..)
     , Tokens
     , Variables
+    , Scope
     , define
     , lookup
     , Value(..)
@@ -69,13 +70,23 @@ data Expression =
     Identifier Token
     deriving (Show)
 
-type Variables = Map.Map String Value
+type Scope = Map.Map String Value
+type Variables = [Scope]
+
 
 define :: String -> Value -> Variables -> Variables
-define = Map.insert
+define _ _ [] = []
+define k v (vars:rest) = 
+    let vars' = Map.insert k v vars
+    in  vars' : rest
 
 lookup :: String -> Variables -> Maybe Value
-lookup = Map.lookup
+lookup _ [] = Nothing
+lookup k [vars] = Map.lookup k vars
+lookup k (vars:rest) =
+    case Map.lookup k vars of
+        Nothing -> lookup k rest
+        Just r  -> Just r
 
 -- -----
 -- Specialized token list handling to guarantee that every list
