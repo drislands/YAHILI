@@ -31,13 +31,29 @@ uglyPrint = \case
     LString  s             -> s
     LBoolean b             -> show b 
     LNumber  n             -> show n
+    Assignment t e         -> parenthesize (getLexeme t <> "=") [e]
     Identifier t           -> getLexeme t
 
 parse :: Tokens -> Writer [ParseError] Expression
 parse = evalStateT parseExpression
 
 parseExpression :: Parsing Expression
-parseExpression = parseEquality
+parseExpression = parseAssignment
+
+parseAssignment :: Parsing Expression
+parseAssignment = do
+    expr <- parseEquality
+    m <- match [Lx_Equal]
+    case m of
+        Nothing -> pure expr
+        Just eq -> do
+            case expr of
+                Identifier v -> do
+                    value <- parseAssignment
+                    pure $ Assignment v value
+                _            -> do
+                    lift $ tell [ParseError eq "Invalid assignment target."]
+                    pure expr
 
 parseEquality :: Parsing Expression
 parseEquality = parseBinary parseComparison [Lx_BangEqual,Lx_EqualEqual]

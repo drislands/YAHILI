@@ -4,7 +4,7 @@ module Expression where
 
 import Language
 
-import Control.Monad.State (StateT (runStateT), MonadState (get))
+import Control.Monad.State (StateT (runStateT), MonadState (get, put))
 import Control.Monad.Except (Except, MonadError (throwError), runExcept)
 import Prelude hiding (lookup)
 
@@ -31,6 +31,15 @@ evaluateInner = \case
     Binary left op right -> evaluateBinary left op right
     Grouping e -> evaluateInner e
     Unary op right -> evaluateUnary op right
+    Assignment t val -> do
+        let name = getLexeme t
+        vars <- get
+        val' <- evaluateInner val
+        case lookup name vars of
+            Just _ -> do
+                put $ define name val' vars
+                pure val'
+            Nothing -> undefined
     Identifier t -> do
         let name = getLexeme t
         vars <- get

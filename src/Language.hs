@@ -65,6 +65,7 @@ data Expression =
     LNumber  Double                      | -- 4, 4.3, etc
     LNil                                 | -- nil
     -- Variables!
+    Assignment Token Expression          | -- p = 9;
     Identifier Token
     deriving (Show)
 
