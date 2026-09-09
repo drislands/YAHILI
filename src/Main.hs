@@ -92,6 +92,7 @@ interpret mvars st = do
     case mvars of
         Nothing -> pure Nothing
         Just vars -> case st of
+            VarDeclaration name e -> undefined
             PrintStatement e ->
                 case evaluate vars e of
                     Left er -> do

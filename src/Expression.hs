@@ -33,6 +33,7 @@ evaluateInner = \case
     Binary left op right -> evaluateBinary left op right
     Grouping e -> evaluateInner e
     Unary op right -> evaluateUnary op right
+    Identifier t -> undefined
 
 evaluateUnary :: Token -> Expression -> Evaluating Value
 evaluateUnary op right = do

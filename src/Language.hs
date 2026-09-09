@@ -59,9 +59,10 @@ data Expression =
     LString  String                      | -- "etc", etc
     LBoolean Bool                        | -- true, false
     LNumber  Double                      | -- 4, 4.3, etc
-    LNil                                   -- nil
+    LNil                                 | -- nil
+    -- Variables!
+    Identifier Token
     deriving (Show)
-    -- TODO: Variables?
 
 -- -----
 -- Specialized token list handling to guarantee that every list
@@ -131,8 +132,9 @@ isInteger d
 
 -- Statements!
 data Statement =
-    ExpressionStatement Expression |
-    PrintStatement      Expression
+    VarDeclaration String Expression |
+    ExpressionStatement   Expression |
+    PrintStatement        Expression
     deriving (Show)
 
 type Program = [Statement]

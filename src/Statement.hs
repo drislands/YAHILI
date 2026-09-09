@@ -24,10 +24,18 @@ parseProgram'' program = do
 
 parseStatement :: Parsing Statement
 parseStatement = do
-    m <- match [Lx_Print]
+    m <- match [Lx_Print,Lx_Var]
     case m of
-        Just _  -> parsePrintStmt
-        Nothing -> parseExpressionStmt
+        Just t  
+            | getTokenType t == Lx_Print -> parsePrintStmt
+            | getTokenType t == Lx_Var   -> parseDeclaration
+        _ -> parseExpressionStmt
+
+parseDeclaration :: Parsing Statement
+parseDeclaration = do
+    undefined
+    -- t <- consume Lx_Identifier "Expect variable name."
+    -- pure $ VarDeclaration (getLexeme t)
 
 parsePrintStmt :: Parsing Statement
 parsePrintStmt = do

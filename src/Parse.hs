@@ -32,6 +32,7 @@ uglyPrint = \case
     LString  s             -> s
     LBoolean b             -> show b 
     LNumber  n             -> show n
+    Identifier t           -> getLexeme t
 
 parse :: Tokens -> Writer [ParseError] Expression
 parse = evalStateT parseExpression
