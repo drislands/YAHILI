@@ -9,7 +9,7 @@ import Control.Monad.State
 -- import GHC.Pre
 
 import Language
-import Control.Monad (when, unless)
+import Control.Monad (unless)
 import Data.Maybe (isNothing)
 
 data ParseError =
@@ -84,7 +84,7 @@ parsePrimary = do
             match [Lx_LeftParen] >>= \case
                 Just _ -> do
                     e <- parseExpression
-                    consume Lx_RightParen "Expect ')' after expression."
+                    consume_ Lx_RightParen "Expect ')' after expression."
                     pure e
                 Nothing -> do
                     e <- peek
@@ -132,13 +132,20 @@ peek = do
     pure $ head tokens
 
 -- Error handling!
-consume :: TokenType -> String -> Parsing ()
+consume :: TokenType -> String -> Parsing Token
 consume tt message = do
     matched <- match [tt]
-    when (isNothing matched) $ do
-        bad <- peek
-        lift $ tell [ParseError bad message]
-        -- synchronize
+    case matched of
+        Just good -> pure good
+        Nothing -> do
+            bad <- peek
+            lift $ tell [ParseError bad message]
+            pure bad
+
+consume_ :: TokenType -> String -> Parsing ()
+consume_ tt message = do
+    _ <- consume tt message
+    pure ()
 
 synchronize :: Parsing ()
 synchronize = do
