@@ -2,6 +2,8 @@ module Statement where
 
 import Language
 import Parse
+
+import Prelude hiding (init)
 import Control.Monad.State
 import Control.Monad.Writer (Writer)
 
@@ -33,18 +35,27 @@ parseStatement = do
 
 parseDeclaration :: Parsing Statement
 parseDeclaration = do
-    undefined
-    -- t <- consume Lx_Identifier "Expect variable name."
-    -- pure $ VarDeclaration (getLexeme t)
+    t <- consume Lx_Identifier "Expect variable name."
+    val <- init
+    consume_ Lx_Semicolon "Expect ';' after variable declaration."
+    pure $ VarDeclaration (getLexeme t) val
+  where
+    init :: Parsing Expression
+    init = do
+        m <- match [Lx_Equal]
+        case m of
+            Just _ -> parseExpression
+            Nothing -> pure LNil
+
 
 parsePrintStmt :: Parsing Statement
 parsePrintStmt = do
     expr <- parseExpression
-    consume Lx_Semicolon "Expect ';' after value."
+    consume_ Lx_Semicolon "Expect ';' after value."
     pure $ PrintStatement expr
 
 parseExpressionStmt :: Parsing Statement
 parseExpressionStmt = do
     expr <- parseExpression
-    consume Lx_Semicolon "Expect ';' after value."
+    consume_ Lx_Semicolon "Expect ';' after value."
     pure $ ExpressionStatement expr

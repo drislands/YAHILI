@@ -97,12 +97,13 @@ parsePrimary = do
         let tt = getTokenType t
             tl = getLexeme    t
         in  case tt of
-            Lx_False     -> Just (LBoolean False)
-            Lx_True      -> Just (LBoolean True)
-            Lx_Nil       -> Just (LNil)
-            Lx_String    -> Just (LString tl)
-            Lx_Number    -> Just (LNumber (read tl))
-            _            -> Nothing
+            Lx_False      -> Just (LBoolean False)
+            Lx_True       -> Just (LBoolean True)
+            Lx_Nil        -> Just (LNil)
+            Lx_String     -> Just (LString tl)
+            Lx_Number     -> Just (LNumber (read tl))
+            Lx_Identifier -> Just (Identifier t)
+            _             -> Nothing
 
 
 -- Helper stateful functions.
