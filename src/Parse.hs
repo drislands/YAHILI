@@ -100,7 +100,7 @@ parsePrimary = do
                 Just _ -> do
                     e <- parseExpression
                     consume_ Lx_RightParen "Expect ')' after expression."
-                    pure e
+                    pure $ Grouping e
                 Nothing -> do
                     e <- peek
                     lift $ tell [ParseError e "Expect expression."]
