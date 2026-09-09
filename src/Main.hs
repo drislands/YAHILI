@@ -118,7 +118,11 @@ interpret mvars st = do
                         pure Nothing
                     Right (_,vars') -> do
                         pure $ Just vars'
-            Block statements -> foldM interpret mvars statements
+            Block statements -> do
+                mvars' <- foldM interpret ((Map.empty :) <$> mvars) statements
+                pure $ case mvars' of
+                    Just (_ : rest) -> Just rest
+                    _               -> Nothing
 
 -- Error stuff.
 loxError :: Int -> String -> IO ()
