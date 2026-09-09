@@ -8,6 +8,7 @@ module Language
     , Variables
     , Scope
     , define
+    , assign
     , lookup
     , Value(..)
     , Statement(..)
@@ -80,9 +81,16 @@ define k v (vars:rest) =
     let vars' = Map.insert k v vars
     in  vars' : rest
 
+assign :: String -> Value -> Variables -> Maybe Variables
+assign _ _ [] = Nothing
+assign k v (vars:rest) =
+    if Map.member k vars
+    then Just $ Map.insert k v vars : rest
+    else (vars:) <$> assign k v rest
+
+
 lookup :: String -> Variables -> Maybe Value
 lookup _ [] = Nothing
-lookup k [vars] = Map.lookup k vars
 lookup k (vars:rest) =
     case Map.lookup k vars of
         Nothing -> lookup k rest

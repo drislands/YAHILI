@@ -35,11 +35,12 @@ evaluateInner = \case
         let name = getLexeme t
         vars <- get
         val' <- evaluateInner val
-        case lookup name vars of
-            Just _ -> do
-                put $ define name val' vars
+        case assign name val' vars of
+            Just vars' -> do
+                put vars'
                 pure val'
-            Nothing -> undefined
+            Nothing -> throwError $ EvalError t
+                ("Undefined variable '" <> name <> "'.")
     Identifier t -> do
         let name = getLexeme t
         vars <- get
