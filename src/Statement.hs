@@ -26,11 +26,12 @@ parseProgram'' program = do
 
 parseStatement :: Parsing Statement
 parseStatement = do
-    m <- match [Lx_Print,Lx_Var]
+    m <- match [Lx_Print,Lx_Var,Lx_LeftBrace]
     case m of
         Just t  
-            | getTokenType t == Lx_Print -> parsePrintStmt
-            | getTokenType t == Lx_Var   -> parseDeclaration
+            | getTokenType t == Lx_Print     -> parsePrintStmt
+            | getTokenType t == Lx_Var       -> parseDeclaration
+            | getTokenType t == Lx_LeftBrace -> parseBlock
         _ -> parseExpressionStmt
 
 parseDeclaration :: Parsing Statement
@@ -59,3 +60,18 @@ parseExpressionStmt = do
     expr <- parseExpression
     consume_ Lx_Semicolon "Expect ';' after value."
     pure $ ExpressionStatement expr
+
+parseBlock :: Parsing Statement
+parseBlock = do
+    statements <- go
+    consume_ Lx_RightBrace "Expect '}' after block."
+    pure $ Block statements
+  where
+    go :: Parsing [Statement]
+    go = do
+        next  <- peek
+        ended <- atEnd
+        if not (getTokenType next == Lx_RightBrace) && not ended then do
+            stmt <- parseStatement
+            (stmt :) <$> go
+        else pure []

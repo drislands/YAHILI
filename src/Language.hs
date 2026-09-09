@@ -166,7 +166,8 @@ isInteger d
 data Statement =
     VarDeclaration String Expression |
     ExpressionStatement   Expression |
-    PrintStatement        Expression
+    PrintStatement        Expression |
+    Block                [Statement]
     deriving (Show)
 
 type Program = [Statement]

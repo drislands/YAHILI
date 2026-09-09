@@ -118,7 +118,7 @@ interpret mvars st = do
                         pure Nothing
                     Right (_,vars') -> do
                         pure $ Just vars'
-
+            Block statements -> foldM interpret mvars statements
 
 -- Error stuff.
 loxError :: Int -> String -> IO ()
