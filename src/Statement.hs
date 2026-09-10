@@ -26,10 +26,11 @@ parseProgram'' program = do
 
 parseStatement :: Parsing Statement
 parseStatement = do
-    m <- match [Lx_Print,Lx_Var,Lx_LeftBrace,Lx_If]
+    m <- match [Lx_Print,Lx_Var,Lx_LeftBrace,Lx_If,Lx_While]
     case m of
         Just t  
             | getTokenType t == Lx_If        -> parseIfStmt
+            | getTokenType t == Lx_While     -> parseWhileStmt
             | getTokenType t == Lx_Print     -> parsePrintStmt
             | getTokenType t == Lx_Var       -> parseDeclaration
             | getTokenType t == Lx_LeftBrace -> parseBlock
@@ -47,6 +48,14 @@ parseIfStmt = do
         Just _ -> Just <$> parseStatement
         Nothing -> pure Nothing
     pure $ IfStatement condition thenBranch elseBranch
+
+parseWhileStmt :: Parsing Statement
+parseWhileStmt = do
+    consume_ Lx_LeftParen "Expect '(' after 'while'."
+    condition <- parseExpression
+    consume_ Lx_RightParen "Expect ')' after condition." 
+    body <- parseStatement
+    pure $ WhileStatement condition body
 
 parseDeclaration :: Parsing Statement
 parseDeclaration = do

@@ -133,6 +133,21 @@ interpret mvars st = do
                         else case elseBranch of
                             Just elseBranch' -> interpret (Just vars') elseBranch'
                             Nothing          -> pure $ Just vars'
+            WhileStatement condition body -> while vars condition body
+  where
+    while :: Variables -> Expression -> Statement -> IO (Maybe Variables)
+    while vars cond body = do
+        case evaluate vars cond of
+            Left er -> do
+                runtimeError er
+                pure Nothing
+            Right (val,vars') -> 
+                if truthy val then do
+                    mvars'' <- interpret (Just vars') body 
+                    case mvars'' of
+                        Nothing -> pure Nothing
+                        Just vars'' -> while vars'' cond body
+                else pure $ Just vars'
 
 
 -- Error stuff.

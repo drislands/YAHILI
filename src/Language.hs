@@ -165,11 +165,12 @@ isInteger d
 
 -- Statements!
 data Statement =
-    VarDeclaration String Expression |
-    ExpressionStatement   Expression |
-    PrintStatement        Expression |
-    Block                [Statement] |
-    IfStatement Expression Statement (Maybe Statement)
+    VarDeclaration String Expression                   |
+    ExpressionStatement   Expression                   |
+    PrintStatement        Expression                   |
+    Block                [Statement]                   |
+    IfStatement Expression Statement (Maybe Statement) |
+    WhileStatement Expression Statement
     deriving (Show)
 
 type Program = [Statement]
