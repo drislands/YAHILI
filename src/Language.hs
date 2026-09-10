@@ -167,7 +167,8 @@ data Statement =
     VarDeclaration String Expression |
     ExpressionStatement   Expression |
     PrintStatement        Expression |
-    Block                [Statement]
+    Block                [Statement] |
+    IfStatement Expression Statement (Maybe Statement)
     deriving (Show)
 
 type Program = [Statement]

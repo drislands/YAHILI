@@ -29,10 +29,25 @@ parseStatement = do
     m <- match [Lx_Print,Lx_Var,Lx_LeftBrace]
     case m of
         Just t  
+            | getTokenType t == Lx_If        -> parseIfStmt
             | getTokenType t == Lx_Print     -> parsePrintStmt
             | getTokenType t == Lx_Var       -> parseDeclaration
             | getTokenType t == Lx_LeftBrace -> parseBlock
         _ -> parseExpressionStmt
+
+parseIfStmt :: Parsing Statement
+parseIfStmt = do
+    consume_ Lx_LeftParen "Expect '(' after 'if'."
+    condition <- parseExpression
+    consume_ Lx_RightParen "Expect ')' after if condition." 
+    
+    thenBranch <- parseStatement
+    m <- match [Lx_Else]
+    case m of
+        Just _ -> do
+            elseBranch <- parseStatement
+            pure $ IfStatement condition thenBranch (Just elseBranch)
+        Nothing -> pure $ IfStatement condition thenBranch Nothing
 
 parseDeclaration :: Parsing Statement
 parseDeclaration = do
