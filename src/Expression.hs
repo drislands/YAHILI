@@ -48,6 +48,13 @@ evaluateInner = \case
             Just x -> pure x
             Nothing -> throwError $ EvalError t 
                 ("Undefined variable '" <> name <> "'.")
+    -- More complex stuff, like control flow!
+    Logical left op right -> do
+        left' <- evaluateInner left
+        if (getTokenType op == Lx_Or) == truthy left' then
+            pure left'
+        else evaluateInner right
+            
 
 evaluateUnary :: Token -> Expression -> Evaluating Value
 evaluateUnary op right = do

@@ -33,6 +33,7 @@ uglyPrint = \case
     LNumber  n             -> show n
     Assignment t e         -> parenthesize (getLexeme t <> "=") [e]
     Identifier t           -> getLexeme t
+    Logical l op r         -> parenthesize (getLexeme op) [l,r]
 
 parse :: Tokens -> Writer [ParseError] Expression
 parse = evalStateT parseExpression
@@ -42,7 +43,7 @@ parseExpression = parseAssignment
 
 parseAssignment :: Parsing Expression
 parseAssignment = do
-    expr <- parseEquality
+    expr <- parseOr
     m <- match [Lx_Equal]
     case m of
         Nothing -> pure expr
@@ -54,6 +55,26 @@ parseAssignment = do
                 _            -> do
                     lift $ tell [ParseError eq "Invalid assignment target."]
                     pure expr
+
+parseOr :: Parsing Expression
+parseOr = do
+    left <- parseAnd
+    m <- match [Lx_Or]
+    case m of
+        Nothing -> pure left
+        Just op  -> do
+            right <- parseOr
+            pure $ Logical left op right
+
+parseAnd :: Parsing Expression
+parseAnd = do
+    left <- parseEquality
+    m <- match [Lx_And]
+    case m of
+        Nothing -> pure left
+        Just op  -> do
+            right <- parseAnd
+            pure $ Logical left op right
 
 parseEquality :: Parsing Expression
 parseEquality = parseBinary parseComparison [Lx_BangEqual,Lx_EqualEqual]

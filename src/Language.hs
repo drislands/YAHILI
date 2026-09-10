@@ -61,6 +61,7 @@ data Expression =
     Binary   Expression Token Expression | -- 4 + 3, i * j, etc
     Grouping Expression                  | -- ( 4 ), ( 4 + 3), etc
     Unary    Token Expression            | -- - 4, etc
+    Logical  Expression Token Expression | -- true or false, etc
     -- Literals
     LString  String                      | -- "etc", etc
     LBoolean Bool                        | -- true, false
