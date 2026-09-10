@@ -37,16 +37,20 @@ parseStatement = do
 parseDeclaration :: Parsing Statement
 parseDeclaration = do
     t <- consume Lx_Identifier "Expect variable name."
-    val <- init
+    mval <- init
     consume_ Lx_Semicolon "Expect ';' after variable declaration."
-    pure $ VarDeclaration (getLexeme t) val
+    case mval of
+        Just val -> pure $ VarAssignment (getLexeme t) val
+        Nothing  -> pure $ VarDeclaration (getLexeme t) 
   where
-    init :: Parsing Expression
+    init :: Parsing (Maybe Expression)
     init = do
         m <- match [Lx_Equal]
         case m of
-            Just _ -> parseExpression
-            Nothing -> pure LNil
+            Just _ -> do
+                e <- parseExpression
+                pure $ Just e
+            Nothing -> pure Nothing
 
 
 parsePrintStmt :: Parsing Statement

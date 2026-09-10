@@ -96,7 +96,8 @@ interpret replmode mvars st = do
     case mvars of
         Nothing -> pure Nothing
         Just vars -> case st of
-            VarDeclaration name e -> do
+            VarDeclaration name -> pure $ Just (define name VUnassigned vars)
+            VarAssignment name e -> do
                 case evaluate vars e of
                     Left er -> do
                         runtimeError er

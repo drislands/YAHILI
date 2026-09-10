@@ -7,6 +7,7 @@ module Language
     , Tokens
     , Variables
     , Scope
+    , LookupError(..)
     , define
     , assign
     , lookup
@@ -74,6 +75,10 @@ data Expression =
 type Scope = Map.Map String Value
 type Variables = [Scope]
 
+data LookupError =
+    UndeclaredError |
+    UninitializedError
+    deriving (Show,Eq)
 
 define :: String -> Value -> Variables -> Variables
 define _ _ [] = []
@@ -81,20 +86,23 @@ define k v (vars:rest) =
     let vars' = Map.insert k v vars
     in  vars' : rest
 
-assign :: String -> Value -> Variables -> Maybe Variables
-assign _ _ [] = Nothing
+assign :: String -> Value -> Variables -> Either LookupError Variables
+assign _ _ [] = Left UndeclaredError
 assign k v (vars:rest) =
     if Map.member k vars
-    then Just $ Map.insert k v vars : rest
+    then Right $ Map.insert k v vars : rest
     else (vars:) <$> assign k v rest
 
 
-lookup :: String -> Variables -> Maybe Value
-lookup _ [] = Nothing
+lookup :: String -> Variables -> Either LookupError Value
+lookup _ [] = Left UndeclaredError
 lookup k (vars:rest) =
     case Map.lookup k vars of
         Nothing -> lookup k rest
-        Just r  -> Just r
+        Just r  -> 
+            case r of
+                VUnassigned -> Left UninitializedError
+                _          -> Right r
 
 -- -----
 -- Specialized token list handling to guarantee that every list
@@ -145,7 +153,8 @@ data Value =
     VString  String |
     VBoolean Bool   |
     VNumber  Double |
-    VNil
+    VNil            |
+    VUnassigned
     deriving (Eq,Ord)
 
 instance Show Value where
@@ -155,6 +164,7 @@ instance Show Value where
         if isInteger d then show (truncate d :: Int64)
         else show d
     show VNil         = "nil"
+    show VUnassigned   = "unassigned"
 
 isInteger :: Double -> Bool
 isInteger d
@@ -164,9 +174,10 @@ isInteger d
 
 -- Statements!
 data Statement =
-    VarDeclaration String Expression |
-    ExpressionStatement   Expression |
-    PrintStatement        Expression |
+    VarAssignment String Expression |
+    VarDeclaration String           |
+    ExpressionStatement  Expression |
+    PrintStatement       Expression |
     Block                [Statement]
     deriving (Show)
 

@@ -36,18 +36,20 @@ evaluateInner = \case
         vars <- get
         val' <- evaluateInner val
         case assign name val' vars of
-            Just vars' -> do
+            Right vars' -> do
                 put vars'
                 pure val'
-            Nothing -> throwError $ EvalError t
+            Left _ -> throwError $ EvalError t
                 ("Undefined variable '" <> name <> "'.")
     Identifier t -> do
         let name = getLexeme t
         vars <- get
         case lookup name vars of
-            Just x -> pure x
-            Nothing -> throwError $ EvalError t 
+            Right x -> pure x
+            Left UndeclaredError -> throwError $ EvalError t 
                 ("Undefined variable '" <> name <> "'.")
+            Left UninitializedError -> throwError $ EvalError t
+                ("Uninitialized variable '" <> name <> "'.")
 
 evaluateUnary :: Token -> Expression -> Evaluating Value
 evaluateUnary op right = do
