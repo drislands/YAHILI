@@ -43,11 +43,10 @@ parseIfStmt = do
     
     thenBranch <- parseStatement
     m <- match [Lx_Else]
-    case m of
-        Just _ -> do
-            elseBranch <- parseStatement
-            pure $ IfStatement condition thenBranch (Just elseBranch)
-        Nothing -> pure $ IfStatement condition thenBranch Nothing
+    elseBranch <- case m of
+        Just _ -> Just <$> parseStatement
+        Nothing -> pure Nothing
+    pure $ IfStatement condition thenBranch elseBranch
 
 parseDeclaration :: Parsing Statement
 parseDeclaration = do
