@@ -156,6 +156,7 @@ consume tt message = do
         Nothing -> do
             bad <- peek
             lift $ tell [ParseError bad message]
+            synchronize
             pure bad
 
 consume_ :: TokenType -> String -> Parsing ()

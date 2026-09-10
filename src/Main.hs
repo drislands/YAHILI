@@ -123,6 +123,17 @@ interpret mvars st = do
                 pure $ case mvars' of
                     Just (_ : rest) -> Just rest
                     _               -> Nothing
+            IfStatement condition thenBranch elseBranch -> do
+                case evaluate vars condition of
+                    Left er -> do
+                        runtimeError er
+                        pure Nothing
+                    Right (val,vars') -> do
+                        if truthy val then interpret (Just vars') thenBranch
+                        else case elseBranch of
+                            Just elseBranch' -> interpret (Just vars') elseBranch'
+                            Nothing          -> pure $ Just vars'
+
 
 -- Error stuff.
 loxError :: Int -> String -> IO ()

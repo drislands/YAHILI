@@ -26,7 +26,7 @@ parseProgram'' program = do
 
 parseStatement :: Parsing Statement
 parseStatement = do
-    m <- match [Lx_Print,Lx_Var,Lx_LeftBrace]
+    m <- match [Lx_Print,Lx_Var,Lx_LeftBrace,Lx_If]
     case m of
         Just t  
             | getTokenType t == Lx_If        -> parseIfStmt
