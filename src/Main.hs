@@ -35,7 +35,7 @@ runPrompt vars = do
     done <- isEOF
     unless done $ do
         input <- getLine
-        result <- run vars input
+        result <- run vars input True
         case result of
             Left _      -> runPrompt vars
             Right vars' -> runPrompt vars'
@@ -46,7 +46,7 @@ runFile file = do
     if not exists then usage else do
         handle <- openFile file ReadMode
         contents <- hGetContents handle
-        results <- run [Map.empty] contents
+        results <- run [Map.empty] contents False
         case results of
             Left exitCode -> (exitWith . ExitFailure) exitCode
             _             -> pure ()
@@ -54,8 +54,8 @@ runFile file = do
 usage :: IO ()
 usage = putStrLn "Usage: yahili [script]"
 
-run :: Variables -> String -> IO (Either Int Variables)
-run vars source = do
+run :: Variables -> String -> Bool -> IO (Either Int Variables)
+run vars source replmode = do
     let scanned = tokensFromSource source
 
         (mtokens,scanErrors) = runWriter scanned 
@@ -82,7 +82,7 @@ run vars source = do
                             loxReport ln (" at '" <> lx <> "'") message
                 pure $ Left 65
             else do
-                mvars <- foldM interpret (Just vars) p
+                mvars <- foldM (interpret replmode) (Just vars) p
                 case mvars of
                     Nothing    -> pure $ Left 70
                     Just vars' -> pure $ Right vars'
@@ -91,8 +91,8 @@ run vars source = do
             pure $ Left 65
 
 -- The meat.
-interpret :: Maybe Variables -> Statement -> IO (Maybe Variables)
-interpret mvars st = do
+interpret :: Bool -> Maybe Variables -> Statement -> IO (Maybe Variables)
+interpret replmode mvars st = do
     case mvars of
         Nothing -> pure Nothing
         Just vars -> case st of
@@ -116,10 +116,11 @@ interpret mvars st = do
                     Left er -> do
                         runtimeError er
                         pure Nothing
-                    Right (_,vars') -> do
+                    Right (v,vars') -> do
+                        when replmode $ putStrLn (show v)
                         pure $ Just vars'
             Block statements -> do
-                mvars' <- foldM interpret ((Map.empty :) <$> mvars) statements
+                mvars' <- foldM (interpret replmode) ((Map.empty :) <$> mvars) statements
                 pure $ case mvars' of
                     Just (_ : rest) -> Just rest
                     _               -> Nothing
