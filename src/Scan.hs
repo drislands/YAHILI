@@ -41,9 +41,7 @@ tokensFromSource :: String -> Lexing [Token]
 tokensFromSource src = do
     (ts,n,_) <- tokensFromSource' ([],1,src)
     let finalEOF = Token { getTokenType=Lx_EOF,getLexeme="",getLineNum=n+1 }
-    case length ts of
-        0 -> pure [finalEOF]
-        _ -> pure $ reverse $ finalEOF : ts
+    pure $ reverse $ finalEOF : ts
 
 tokensFromSource' :: ([Token],Int,String) -> Lexing ([Token],Int,String)
 tokensFromSource' (ts,n,"") = pure (ts,n,"")
