@@ -69,7 +69,8 @@ data Expression =
     LNil                                 | -- nil
     -- Variables!
     Assignment Token Expression          | -- p = 9;
-    Identifier Token
+    Identifier Token                     |
+    Call Expression Token [Expression]     -- f ( g, h) etc
     deriving (Show)
 
 type Scope = Map.Map String Value

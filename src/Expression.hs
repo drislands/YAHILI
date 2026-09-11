@@ -29,6 +29,7 @@ evaluateInner = \case
     LNil       -> pure $ VNil
     -- Expressions!
     Binary left op right -> evaluateBinary left op right
+    Call callee t args -> undefined
     Grouping e -> evaluateInner e
     Unary op right -> evaluateUnary op right
     Assignment t val -> do

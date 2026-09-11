@@ -34,6 +34,7 @@ uglyPrint = \case
     Assignment t e         -> parenthesize (getLexeme t <> "=") [e]
     Identifier t           -> getLexeme t
     Logical l op r         -> parenthesize (getLexeme op) [l,r]
+    Call c _ args          -> parenthesize "call" (c:args)
 
 parse :: Tokens -> Writer [ParseError] Expression
 parse = evalStateT parseExpression
@@ -107,7 +108,43 @@ parseUnary = do
         Just t -> do
             right <- parseUnary
             pure $ Unary t right
-        Nothing -> parsePrimary
+        Nothing -> parseCall
+
+parseCall :: Parsing Expression
+parseCall = do
+    expr <- parsePrimary
+    finishCall expr
+  where
+    finishCall :: Expression -> Parsing Expression
+    finishCall callee = do
+        m <- match [Lx_LeftParen]
+        case m of
+            Nothing -> pure callee
+            Just _  -> do
+                rp <- peek
+                margs <- if getTokenType rp == Lx_RightParen
+                    then pure $ Right []
+                    else parseArgs 1
+                case margs of
+                    Left t -> do
+                        lift $ tell [ParseError t "Can't have more than 255 arguments."]
+                        synchronize
+                        pure LNil
+                    Right args -> do
+                        paren <- consume Lx_RightParen "Expect ')' after arguments."
+                        finishCall (Call callee paren args)
+
+    parseArgs :: Int -> Parsing (Either Token [Expression])
+    parseArgs n = do
+        if n > 255 then do
+            t <- peek
+            pure $ Left t
+        else do
+            arg <- parseExpression
+            m <- match [Lx_Comma]
+            case m of
+                Nothing -> pure $ Right [arg]
+                Just _  -> (fmap . fmap) (arg :) (parseArgs (n+1))
 
 parsePrimary :: Parsing Expression
 parsePrimary = do
@@ -200,5 +237,6 @@ synchronize = do
         , Lx_While
         , Lx_Print
         , Lx_Return
+        , Lx_EOF
         ]
 
