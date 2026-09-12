@@ -176,7 +176,7 @@ instance Show Value where
     show (VBoolean b)  = show b
     show (VNumber d)   =
         if isInteger d then show (truncate d :: Int64)
-        else show d
+        else printf "%f" d
     show VNil          = "nil"
     show (VCallable _ _) = ""
 
