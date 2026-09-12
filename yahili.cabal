@@ -66,6 +66,7 @@ executable yahili
                      ,Parse
                      ,Expression
                      ,Statement
+                     ,Function
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
@@ -75,6 +76,7 @@ executable yahili
                      ,directory
                      ,mtl
                      ,containers
+                     ,time
 
     -- Directories containing source files.
     hs-source-dirs:   src

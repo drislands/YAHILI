@@ -4,23 +4,19 @@ module Expression where
 
 import Language
 
-import Control.Monad.State (StateT (runStateT), MonadState (get, put))
-import Control.Monad.Except (Except, MonadError (throwError), runExcept)
+import Control.Monad.State (StateT (runStateT), MonadState (get, put), MonadIO (liftIO), MonadTrans (lift))
+import Control.Monad.Except (ExceptT, MonadError (throwError), runExceptT)
 import Prelude hiding (lookup)
 
 
-data EvalError = 
-    EvalError Token String
-    deriving (Show)
+type Evaluating m a = StateT Variables (ExceptT EvalError m) a
 
-type Evaluating a = StateT Variables (Except EvalError) a
-
-evaluate :: Variables -> Expression -> Either EvalError (Value,Variables)
+evaluate :: MonadIO m => Variables -> Expression -> m (Either EvalError (Value,Variables))
 evaluate vars ex = 
     let result = evaluateInner ex
-    in  runExcept (runStateT result vars)
+    in  runExceptT (runStateT result vars)
 
-evaluateInner :: Expression -> Evaluating Value
+evaluateInner :: MonadIO m => Expression -> Evaluating m Value
 evaluateInner = \case
     -- Literals
     LString  s -> pure $ VString  s
@@ -32,14 +28,19 @@ evaluateInner = \case
     Call callee t args -> do
         callee' <- evaluateInner callee
         case callee' of
-            VCallable arity -> do
+            VCallable arity callable -> do
                 if arity /= length args then throwError $ EvalError t ("Expected " <> 
                     show arity <> " arguments but got " <> 
                     show (length args) <> ".")
                 else do
                     args' <- mapM evaluateInner args
-                    -- call the function on the args.
-                    undefined
+                    case callable of
+                        UserDefined body -> undefined
+                        NativeFunction iofunc -> do
+                            result <- lift $ liftIO (iofunc args')
+                            case result of
+                                Left er -> throwError er
+                                Right val -> pure val
             _ -> throwError $ EvalError t 
                 ("Can only call functions and classes.")
     Grouping e -> evaluateInner e
@@ -69,7 +70,7 @@ evaluateInner = \case
         else evaluateInner right
             
 
-evaluateUnary :: Token -> Expression -> Evaluating Value
+evaluateUnary :: MonadIO m => Token -> Expression -> Evaluating m Value
 evaluateUnary op right = do
     case getTokenType op of
         Lx_Minus -> do
@@ -82,12 +83,12 @@ evaluateUnary op right = do
             pure $ VBoolean ((not . truthy) r)
         _ -> throwError $ EvalError op "Invalid unary operator."
 
-evaluateBinary :: Expression -> Token -> Expression -> Evaluating Value
+evaluateBinary :: MonadIO m => Expression -> Token -> Expression -> Evaluating m Value
 evaluateBinary left op right = case lookupOp (getTokenType op) of
     Just f -> f op left right
     Nothing -> throwError $ EvalError op "Invalid binary operator."
   where
-    lookupOp :: TokenType -> Maybe (Token -> Expression -> Expression -> Evaluating Value)
+    lookupOp :: MonadIO m => TokenType -> Maybe (Token -> Expression -> Expression -> Evaluating m Value)
     lookupOp = \case
         -- Term
         Lx_Plus         -> Just evaluatePlus
@@ -106,40 +107,40 @@ evaluateBinary left op right = case lookupOp (getTokenType op) of
         _ -> Nothing
 
 -- Binary functions
-evaluateBinaryValues :: ((Value,Value) -> Evaluating Value) -> Expression -> Expression -> Evaluating Value
+evaluateBinaryValues :: MonadIO m => ((Value,Value) -> Evaluating m Value) -> Expression -> Expression -> Evaluating m Value
 evaluateBinaryValues f left right = do
     l <- evaluateInner left
     r <- evaluateInner right
     f (l,r)
 
 -- Math (and string concatenation)
-evaluatePlus :: Token -> Expression -> Expression -> Evaluating Value
+evaluatePlus :: MonadIO m => Token -> Expression -> Expression -> Evaluating m Value
 evaluatePlus op = evaluateBinaryValues $ \case
     (VNumber v1,VNumber v2) -> pure $ VNumber (v1+v2)
     (VString s1,VString s2) -> pure $ VString (s1<>s2)
     _ -> throwError $ EvalError op "Operands must be two numbers or two strings."
 
-evaluateMinus :: Token -> Expression -> Expression -> Evaluating Value
+evaluateMinus :: MonadIO m => Token -> Expression -> Expression -> Evaluating m Value
 evaluateMinus op = evaluateBinaryValues $ \case
     (VNumber v1,VNumber v2) -> pure $ VNumber (v1-v2)
     _ -> throwError $ EvalError op "Operands must be two numbers."
 
-evaluateStar :: Token -> Expression -> Expression -> Evaluating Value
+evaluateStar :: MonadIO m => Token -> Expression -> Expression -> Evaluating m Value
 evaluateStar op = evaluateBinaryValues $ \case
     (VNumber v1,VNumber v2) -> pure $ VNumber (v1*v2)
     _ -> throwError $ EvalError op "Operands must be two numbers."
 
-evaluateSlash :: Token -> Expression -> Expression -> Evaluating Value
+evaluateSlash :: MonadIO m => Token -> Expression -> Expression -> Evaluating m Value
 evaluateSlash op = evaluateBinaryValues $ \case
     (VNumber _,VNumber 0)  -> throwError $ EvalError op "Cannot divide by zero."
     (VNumber v1,VNumber v2) -> pure $ VNumber (v1/v2)
     _ -> throwError $ EvalError op "Operands must be two numbers."
 
 -- Boolean logic
-evaluateEquality :: Token -> Expression -> Expression -> Evaluating Value
+evaluateEquality :: MonadIO m => Token -> Expression -> Expression -> Evaluating m Value
 evaluateEquality _ = evaluateBinaryValues $ \(l,r) -> pure $ VBoolean(l == r)
 
-evaluateInequality :: Token -> Expression -> Expression -> Evaluating Value
+evaluateInequality :: MonadIO m => Token -> Expression -> Expression -> Evaluating m Value
 evaluateInequality _ = evaluateBinaryValues $ \(l,r) -> pure $ VBoolean(l /= r)
 
 -- Nil is false, False is false, everything else is true.
@@ -150,22 +151,22 @@ truthy = \case
     _          -> True
 
 -- Number comparison
-evaluateLess :: Token -> Expression -> Expression -> Evaluating Value
+evaluateLess :: MonadIO m => Token -> Expression -> Expression -> Evaluating m Value
 evaluateLess op = evaluateBinaryValues $ \case
     (VNumber v1,VNumber v2) -> pure $ VBoolean (v1 < v2)
     _ -> throwError $ EvalError op "Operands must be two numbers."
 
-evaluateLessEqual :: Token -> Expression -> Expression -> Evaluating Value
+evaluateLessEqual :: MonadIO m => Token -> Expression -> Expression -> Evaluating m Value
 evaluateLessEqual op = evaluateBinaryValues $ \case
     (VNumber v1,VNumber v2) -> pure $ VBoolean (v1 <= v2)
     _ -> throwError $ EvalError op "Operands must be two numbers."
 
-evaluateGreater :: Token -> Expression -> Expression -> Evaluating Value
+evaluateGreater :: MonadIO m => Token -> Expression -> Expression -> Evaluating m Value
 evaluateGreater op = evaluateBinaryValues $ \case
     (VNumber v1,VNumber v2) -> pure $ VBoolean (v1 > v2)
     _ -> throwError $ EvalError op "Operands must be two numbers."
 
-evaluateGreaterEqual :: Token -> Expression -> Expression -> Evaluating Value
+evaluateGreaterEqual :: MonadIO m => Token -> Expression -> Expression -> Evaluating m Value
 evaluateGreaterEqual op = evaluateBinaryValues $ \case
     (VNumber v1,VNumber v2) -> pure $ VBoolean (v1 >= v2)
     _ -> throwError $ EvalError op "Operands must be two numbers."

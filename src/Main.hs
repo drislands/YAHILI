@@ -15,6 +15,7 @@ import Control.Monad.Writer (runWriter)
 import qualified Data.Map as Map
 import Statement
 import Data.Bifunctor (first)
+import Function (mkGlobalFunctions)
 
 main :: IO ()
 main = do
@@ -22,7 +23,7 @@ main = do
     let args' = NE.nonEmpty args
 
     case args' of
-        Nothing -> runPrompt ([],Map.empty)
+        Nothing -> runPrompt mkGlobalFunctions
         Just as -> case NE.length as of
             1 -> runFile (NE.head as)
             _ -> do 
@@ -47,7 +48,7 @@ runFile file = do
     if not exists then usage else do
         handle <- openFile file ReadMode
         contents <- hGetContents handle
-        results <- run ([],Map.empty) contents
+        results <- run mkGlobalFunctions contents
         case results of
             Left exitCode -> (exitWith . ExitFailure) exitCode
             _             -> pure ()
@@ -98,14 +99,14 @@ interpret mvars st = do
         Nothing -> pure Nothing
         Just vars -> case st of
             VarDeclaration name e -> do
-                case evaluate vars e of
+                evaluate vars e >>= \case
                     Left er -> do
                         runtimeError er
                         pure Nothing
                     Right (val,vars') -> do
                         pure $ Just (define name val vars')
             PrintStatement e ->
-                case evaluate vars e of
+                evaluate vars e >>= \case
                     Left er -> do
                         runtimeError er
                         pure Nothing
@@ -113,7 +114,7 @@ interpret mvars st = do
                         putStrLn $ show val
                         pure $ Just vars'
             ExpressionStatement e ->
-                case evaluate vars e of
+                evaluate vars e >>= \case
                     Left er -> do
                         runtimeError er
                         pure Nothing
@@ -125,7 +126,7 @@ interpret mvars st = do
                     Just (_ : rest,g) -> Just (rest,g)
                     _                 -> Nothing
             IfStatement condition thenBranch elseBranch -> do
-                case evaluate vars condition of
+                evaluate vars condition >>= \case
                     Left er -> do
                         runtimeError er
                         pure Nothing
@@ -138,7 +139,7 @@ interpret mvars st = do
   where
     while :: Variables -> Expression -> Statement -> IO (Maybe Variables)
     while vars cond body = do
-        case evaluate vars cond of
+        evaluate vars cond >>= \case
             Left er -> do
                 runtimeError er
                 pure Nothing

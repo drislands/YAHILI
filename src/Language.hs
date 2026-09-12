@@ -4,6 +4,7 @@ module Language
     ( TokenType(..)
     , Token(..)
     , Expression(..)
+    , EvalError(EvalError)
     , Tokens
     , Variables
     , Scope
@@ -11,6 +12,7 @@ module Language
     , assign
     , lookup
     , Value(..)
+    , LoxCallable(..)
     , Statement(..)
     , Program
     , head
@@ -24,6 +26,7 @@ import Prelude hiding (head,tail,lookup)
 import Data.Int
 import Data.Bifunctor (first)
 import qualified Data.Map as Map
+import Text.Printf
 
 data Token = Token 
     { getTokenType :: TokenType
@@ -72,6 +75,10 @@ data Expression =
     Assignment Token Expression          | -- p = 9;
     Identifier Token                     |
     Call Expression Token [Expression]     -- f ( g, h) etc
+    deriving (Show)
+
+data EvalError = 
+    EvalError Token String
     deriving (Show)
 
 type Scope = Map.Map String Value
@@ -154,8 +161,15 @@ data Value =
     VBoolean Bool   |
     VNumber  Double |
     VNil            |
-    VCallable Int
-    deriving (Eq,Ord)
+    VCallable Int LoxCallable
+
+instance Eq Value where
+    VString s1 == VString s2 = s1 == s2
+    VBoolean b1 == VBoolean b2 = b1 == b2
+    VNumber d1 == VNumber d2 = d1 == d2
+    VNil == VNil = True
+    VCallable _ _ == VCallable _ _ = False
+    _ == _ = False
 
 instance Show Value where
     show (VString s)   = s
@@ -164,13 +178,18 @@ instance Show Value where
         if isInteger d then show (truncate d :: Int64)
         else show d
     show VNil          = "nil"
-    show (VCallable _) = ""
+    show (VCallable _ _) = ""
 
 isInteger :: Double -> Bool
 isInteger d
     | isNaN d || isInfinite d   = False
     | abs d >= 9007199254740992 = True
     | otherwise                 = d == fromIntegral (truncate d :: Int64)
+
+-- Functions!
+data LoxCallable =
+    UserDefined Statement |
+    NativeFunction ([Value] -> IO (Either EvalError Value))
 
 -- Statements!
 data Statement =
