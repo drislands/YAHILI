@@ -22,6 +22,7 @@ module Language
 
 import Prelude hiding (head,tail,lookup)
 import Data.Int
+import Data.Bifunctor (first)
 import qualified Data.Map as Map
 
 data Token = Token 
@@ -74,29 +75,34 @@ data Expression =
     deriving (Show)
 
 type Scope = Map.Map String Value
-type Variables = [Scope]
+type Variables = ([Scope],Scope)
 
 
 define :: String -> Value -> Variables -> Variables
-define _ _ [] = []
-define k v (vars:rest) = 
+define k v (vars:rest,g) = 
     let vars' = Map.insert k v vars
-    in  vars' : rest
+    in  (vars' : rest,g)
+define k v ([],g) =
+    let g' = Map.insert k v g
+    in  ([],g')
 
 assign :: String -> Value -> Variables -> Maybe Variables
-assign _ _ [] = Nothing
-assign k v (vars:rest) =
+assign k v (vars:rest,g) =
     if Map.member k vars
-    then Just $ Map.insert k v vars : rest
-    else (vars:) <$> assign k v rest
+    then Just $ (Map.insert k v vars : rest,g)
+    else (first (vars:)) <$> assign k v (rest,g)
+assign k v ([],g) =
+    if Map.member k g
+    then Just $ ([],Map.insert k v g)
+    else Nothing
 
 
 lookup :: String -> Variables -> Maybe Value
-lookup _ [] = Nothing
-lookup k (vars:rest) =
+lookup k (vars:rest,g) =
     case Map.lookup k vars of
-        Nothing -> lookup k rest
+        Nothing -> lookup k (rest,g)
         Just r  -> Just r
+lookup k ([],g) = Map.lookup k g
 
 -- -----
 -- Specialized token list handling to guarantee that every list

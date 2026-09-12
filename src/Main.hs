@@ -14,6 +14,7 @@ import Language
 import Control.Monad.Writer (runWriter)
 import qualified Data.Map as Map
 import Statement
+import Data.Bifunctor (first)
 
 main :: IO ()
 main = do
@@ -21,7 +22,7 @@ main = do
     let args' = NE.nonEmpty args
 
     case args' of
-        Nothing -> runPrompt [Map.empty]
+        Nothing -> runPrompt ([],Map.empty)
         Just as -> case NE.length as of
             1 -> runFile (NE.head as)
             _ -> do 
@@ -46,7 +47,7 @@ runFile file = do
     if not exists then usage else do
         handle <- openFile file ReadMode
         contents <- hGetContents handle
-        results <- run [Map.empty] contents
+        results <- run ([],Map.empty) contents
         case results of
             Left exitCode -> (exitWith . ExitFailure) exitCode
             _             -> pure ()
@@ -119,10 +120,10 @@ interpret mvars st = do
                     Right (_,vars') -> do
                         pure $ Just vars'
             Block statements -> do
-                mvars' <- foldM interpret ((Map.empty :) <$> mvars) statements
+                mvars' <- foldM interpret ((first (Map.empty :)) <$> mvars) statements
                 pure $ case mvars' of
-                    Just (_ : rest) -> Just rest
-                    _               -> Nothing
+                    Just (_ : rest,g) -> Just (rest,g)
+                    _                 -> Nothing
             IfStatement condition thenBranch elseBranch -> do
                 case evaluate vars condition of
                     Left er -> do
