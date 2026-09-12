@@ -29,7 +29,19 @@ evaluateInner = \case
     LNil       -> pure $ VNil
     -- Expressions!
     Binary left op right -> evaluateBinary left op right
-    Call callee t args -> undefined
+    Call callee t args -> do
+        callee' <- evaluateInner callee
+        case callee' of
+            VCallable arity -> do
+                if arity /= length args then throwError $ EvalError t ("Expected " <> 
+                    show arity <> " arguments but got " <> 
+                    show (length args) <> ".")
+                else do
+                    args' <- mapM evaluateInner args
+                    -- call the function on the args.
+                    undefined
+            _ -> throwError $ EvalError t 
+                ("Can only call functions and classes.")
     Grouping e -> evaluateInner e
     Unary op right -> evaluateUnary op right
     Assignment t val -> do

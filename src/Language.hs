@@ -147,16 +147,18 @@ data Value =
     VString  String |
     VBoolean Bool   |
     VNumber  Double |
-    VNil
+    VNil            |
+    VCallable Int
     deriving (Eq,Ord)
 
 instance Show Value where
-    show (VString s)  = s
-    show (VBoolean b) = show b
-    show (VNumber d)  =
+    show (VString s)   = s
+    show (VBoolean b)  = show b
+    show (VNumber d)   =
         if isInteger d then show (truncate d :: Int64)
         else show d
-    show VNil         = "nil"
+    show VNil          = "nil"
+    show (VCallable _) = ""
 
 isInteger :: Double -> Bool
 isInteger d
