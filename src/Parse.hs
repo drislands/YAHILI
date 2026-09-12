@@ -237,6 +237,7 @@ synchronize = do
         , Lx_While
         , Lx_Print
         , Lx_Return
+        , Lx_Semicolon
         , Lx_EOF
         ]
 
