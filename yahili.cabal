@@ -53,6 +53,26 @@ extra-doc-files:    CHANGELOG.md
 common warnings
     ghc-options: -Wall
 
+library
+    import:           warnings
+    exposed-modules:  Scan
+                     ,Language
+                     ,Parse
+                     ,Expression
+                     ,Statement
+                     ,Function
+
+    build-depends:    base ^>=4.20.2.0
+                     ,directory
+                     ,mtl
+                     ,containers
+                     ,time
+
+    -- Directories containing source files.
+    hs-source-dirs:   src
+    -- Base language which the package is written in.
+    default-language: Haskell2010
+
 executable yahili
     -- Import common warning flags.
     import:           warnings
@@ -73,6 +93,7 @@ executable yahili
 
     -- Other library packages from which modules are imported.
     build-depends:    base ^>=4.20.2.0
+                     ,yahili
                      ,directory
                      ,mtl
                      ,containers
@@ -83,3 +104,16 @@ executable yahili
 
     -- Base language which the package is written in.
     default-language: Haskell2010
+
+test-suite yahili-tests
+    type:              exitcode-stdio-1.0
+    main-is:           Main.hs
+    hs-source-dirs:    test
+    build-depends:     base
+                      ,yahili
+                      ,mtl
+                      ,tasty
+                      ,tasty-hunit
+                      ,tasty-quickcheck
+    default-language:  Haskell2010
+    
