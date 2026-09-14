@@ -1,5 +1,9 @@
 {-# LANGUAGE PatternSynonyms #-}
 
+{- |Contains definitions for various aspects of the language:
+    `Token`s and their dedicated group type `Tokens`,
+    `Expression`s, `Variables`, and more.
+-}
 module Language
     ( TokenType(..)
     , Token(..)
@@ -28,6 +32,7 @@ import Data.Bifunctor (first)
 import qualified Data.Map as Map
 import Text.Printf
 
+-- |Represents a Lox token, such as 'for', ';', 'myVar', '"hello"', etc
 data Token = Token 
     { getTokenType :: TokenType
     , getLexeme    :: String
@@ -40,7 +45,10 @@ instance Show Token where
             -- tl = getLineNum t
         in  show tt <> " " <> getLexeme t -- <> " " <> show tl
 
-
+-- |The various kinds of `Token`s allowed. These are operators,
+--  punctuation (parentheses, braces, etc), keywords, literals,
+--  and the EndOfFile character that indicates the whole body 
+--  of code has been read.
 data TokenType =
     -- Single character
     Lx_LeftParen  | Lx_RightParen   | Lx_LeftBrace | Lx_RightBrace |
@@ -60,6 +68,9 @@ data TokenType =
     Lx_EOF
     deriving (Show,Eq)
 
+-- |Represents a Lox expression. A `Binary` expression, for example,
+--  consists of two other expressions and an operator joining them,
+--  such as "2 + 2" or "a + 5 > b".
 data Expression =
     -- Recursive expressions
     Binary   Expression Token Expression | -- 4 + 3, i * j, etc
@@ -77,14 +88,22 @@ data Expression =
     Call Expression Token [Expression]     -- f ( g, h) etc
     deriving (Show)
 
+-- |Represents an error encountered while evaluating `Tokens`.
+--  In essence, syntax errors.
 data EvalError = 
     EvalError Token String
     deriving (Show)
 
+-- |A `Map.Map` of variable names and associate `Value`s.
 type Scope = Map.Map String Value
+-- |The whole set of `Scope`s for the current state of the program.
+--  The first value is all non-global `Scope`s from most local up,
+--  and the second value is the global `Scope`.
 type Variables = ([Scope],Scope)
 
-
+-- |Defines a variable with a `Value`. If the variable
+--  already exists in the lowest scope, it is equivalent
+--  to calling `assign`.
 define :: String -> Value -> Variables -> Variables
 define k v (vars:rest,g) = 
     let vars' = Map.insert k v vars
@@ -93,6 +112,8 @@ define k v ([],g) =
     let g' = Map.insert k v g
     in  ([],g')
 
+-- |Assigns a `Value` to an existing variable in any `Scope`.
+--  Returns `Nothing` if the variable does not exist.
 assign :: String -> Value -> Variables -> Maybe Variables
 assign k v (vars:rest,g) =
     if Map.member k vars
@@ -103,7 +124,9 @@ assign k v ([],g) =
     then Just $ ([],Map.insert k v g)
     else Nothing
 
-
+-- |Obtains the `Value` associated with a variable name.
+--  If it can't be found at the lowest `Scope`, recurse
+--  up until we check the global `Scope`.
 lookup :: String -> Variables -> Maybe Value
 lookup k (vars:rest,g) =
     case Map.lookup k vars of
@@ -112,14 +135,16 @@ lookup k (vars:rest,g) =
 lookup k ([],g) = Map.lookup k g
 
 -- -----
--- Specialized token list handling to guarantee that every list
--- ends with an EOF.
+-- |A `Token` of `TokenType` `Lx_EOF`. Attempting to construct this
+--  with any other type fails with `Nothing`.
 newtype EOFToken = UnsafeEOFToken { getEOF :: Token } deriving (Show)
 mkEOF :: Token -> Maybe EOFToken
 mkEOF t 
     | getTokenType t == Lx_EOF = Just (UnsafeEOFToken t)
     | otherwise                = Nothing
 
+-- |A `Token` of any `TokenType` *except* `Lx_EOF`. Attempting to 
+--  construct this with EOF fails with `Nothing`.
 newtype BodyToken = UnsafeBodyToken { getBodyToken :: Token } deriving (Show)
 mkBody :: Token -> Maybe BodyToken
 mkBody t
@@ -128,34 +153,52 @@ mkBody t
 
 infixr 5 :|*
 
+-- |Specialized token list handling to guarantee that every list
+--  ends with an EOF.
 data Tokens 
     = TksLastInternal EOFToken
     | BodyToken :|* Tokens
     deriving (Show)
 
+-- |Obtain the Token at the front of the list
+--  of Tokens. Since Tokens must always end with
+--  an EOF, this will always return a value.
 head :: Tokens -> Token
 head (TksLastInternal eof) = getEOF eof
 head (b :|* _) = getBodyToken b
 
+-- |Obtain the tail of the list of Tokens. Since
+--  Tokens must always end with an EOF, this will
+--  always return a value.
 tail :: Tokens -> Tokens
 tail e@(TksLastInternal _) = e
 tail (_ :|* rest) = rest
 
+-- |Pattern matches `Tokens` when the only `Token` left
+--  is EOF.
 pattern TksLast :: Token -> Tokens
 pattern TksLast t <- TksLastInternal (UnsafeEOFToken t)
 
+-- |Patter matches `Tokens` when there is more than just
+--  EOF left.
 pattern (:|) :: Token -> Tokens -> Tokens
 pattern t :| rest <- UnsafeBodyToken t :|* rest
 
 -- Informs GHC that matching on (:|) and TksLast covers all cases of Tokens
 {-# COMPLETE (:|), TksLast #-}
 
+-- |Possibly constructs Tokens from a list of Token values.
+--  Requires that the final object be an EOF, and none of
+--  the preceding ones be EOF.
 mkTokens :: [Token] -> Maybe Tokens
 mkTokens []     = Nothing
 mkTokens [t]    = TksLastInternal <$> mkEOF t
 mkTokens (t:ts) = (:|*) <$> mkBody t <*> mkTokens ts
 -- -----
 
+-- |A value that an expression or variable represents when
+--  evaluated. Expression "3 > 5" evalues to `VBoolean False`,
+--  for example.
 data Value =
     VString  String |
     VBoolean Bool   |
@@ -180,6 +223,9 @@ instance Show Value where
     show VNil          = "nil"
     show (VCallable _ _) = ""
 
+-- |Quick math to confirm a Double is an integer
+--  value. Only used to determine if the ".0" 
+--  needs to be stripped from the end for printing.
 isInteger :: Double -> Bool
 isInteger d
     | isNaN d || isInfinite d   = False
@@ -187,11 +233,16 @@ isInteger d
     | otherwise                 = d == fromIntegral (truncate d :: Int64)
 
 -- Functions!
+-- |Represents a function, either defined by the user with `Lx_Fun` or
+--  a native one defined by the language such as "clock()".
 data LoxCallable =
     UserDefined Statement |
     NativeFunction ([Value] -> IO (Either EvalError Value))
 
 -- Statements!
+-- |Represents a statement in Lox. For example, a `VarDeclaration` 
+--  representing "var a = 5 > 3" would contain "a" as the `String`
+--  and "5 > 3" as the `Expression`.
 data Statement =
     VarDeclaration String Expression                   |
     ExpressionStatement   Expression                   |
@@ -201,5 +252,7 @@ data Statement =
     WhileStatement Expression Statement
     deriving (Show)
 
+-- |A list of `Statement`s to be executed in order. Constructed
+--  when a Lox file is lexed and parsed.
 type Program = [Statement]
     
