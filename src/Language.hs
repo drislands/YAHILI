@@ -222,7 +222,10 @@ instance Show Value where
         if isInteger d then show (truncate d :: Int64)
         else printf "%f" d
     show VNil          = "nil"
-    show (VCallable _ _) = ""
+    show (VCallable _ lc) = 
+        case lc of
+            UserDefined decl -> "<fn " <> funName decl <> ">"
+            NativeFunction _ -> "<fn native>"
 
 -- |Quick math to confirm a Double is an integer
 --  value. Only used to determine if the ".0" 
