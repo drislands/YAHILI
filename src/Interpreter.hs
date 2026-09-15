@@ -114,12 +114,12 @@ evaluateCall callee t args = do
                         let body    = funBody declaration
                             params  = funParams declaration
                             zipped  = zip params args'
-                            foldfun = (\acc (p,a) -> define p a acc)
-                            newvars = foldl foldfun ([],g) zipped
-                        -- result <- lift $ liftIO (interpret (Just newvars) body)
-                        let g' = g
+                            newvars = ([Map.fromList zipped],g)
+                        put newvars
+                        evaluateStatement body
+                        (_,g') <- get
                         put (old,g')
-                        undefined
+                        pure VNil
                     NativeFunction iofunc -> do
                         result <- lift $ liftIO (iofunc args')
                         case result of
@@ -210,13 +210,20 @@ evaluateStatement = \case
             Just elseBranch' -> evaluateStatement elseBranch'
             Nothing -> pure ()
     WhileStatement condition body -> evaluateWhile condition body
-    _ -> undefined
+    FunDeclaration declaration    -> evaluateFunDec declaration
+    -- _ -> undefined
 
 evaluateWhile :: MonadIO m => Expression -> Statement -> Evaluating m ()
 evaluateWhile condition body = do
     val <- evaluateExpression condition
     if truthy val then evaluateWhile condition body
     else pure ()
+
+evaluateFunDec :: MonadIO m => FunctionDeclaration -> Evaluating m ()
+evaluateFunDec declaration = do
+    let name  = funName declaration
+        arity = length $ funParams declaration
+    modify' $ define name (VCallable arity (UserDefined declaration))
 
 -- Helpers
 -- Nil is false, False is false, everything else is true.
