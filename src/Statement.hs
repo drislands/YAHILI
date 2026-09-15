@@ -146,7 +146,12 @@ parseFunction kind = do
             consume_ Lx_RightParen "Expect ')' after parameters."
             consume_ Lx_LeftBrace  ("Expect '{' before " <> kind <> " body.")
             body <- parseBlock
-            pure $ FunDeclaration name params body
+            pure $ FunDeclaration $ 
+                FunctionDeclaration 
+                { funName = name
+                , funParams = params
+                , funBody = body
+                }
   where
     parseParameters :: Int -> Parsing (Either Token [Token])
     parseParameters n = do

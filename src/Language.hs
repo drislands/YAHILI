@@ -24,6 +24,7 @@ module Language
     , mkTokens
     , pattern TksLast
     , pattern (:|)
+    , FunctionDeclaration(..)
     ) where
 
 import Prelude hiding (head,tail,lookup)
@@ -236,7 +237,7 @@ isInteger d
 -- |Represents a function, either defined by the user with `Lx_Fun` or
 --  a native one defined by the language such as "clock()".
 data LoxCallable =
-    UserDefined Statement |
+    UserDefined FunctionDeclaration |
     NativeFunction ([Value] -> IO (Either EvalError Value))
 
 -- Statements!
@@ -245,7 +246,7 @@ data LoxCallable =
 --  and "5 > 3" as the `Expression`.
 data Statement =
     -- TODO: should these declarations use Token values instead?
-    FunDeclaration String [String] Statement           |
+    FunDeclaration FunctionDeclaration                 |
     VarDeclaration String Expression                   |
     ExpressionStatement   Expression                   |
     PrintStatement        Expression                   |
@@ -253,6 +254,12 @@ data Statement =
     IfStatement Expression Statement (Maybe Statement) |
     WhileStatement Expression Statement
     deriving (Show)
+
+data FunctionDeclaration = FunctionDeclaration
+    { funName   :: String
+    , funParams :: [String]
+    , funBody   :: Statement
+    } deriving (Show)
 
 -- |A list of `Statement`s to be executed in order. Constructed
 --  when a Lox file is lexed and parsed.

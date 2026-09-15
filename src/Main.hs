@@ -136,7 +136,7 @@ interpret mvars st = do
                             Just elseBranch' -> interpret (Just vars') elseBranch'
                             Nothing          -> pure $ Just vars'
             WhileStatement condition body -> while vars condition body
-            FunDeclaration _ _ _ -> undefined
+            FunDeclaration _ -> undefined
   where
     while :: Variables -> Expression -> Statement -> IO (Maybe Variables)
     while vars cond body = do
