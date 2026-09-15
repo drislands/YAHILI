@@ -244,6 +244,8 @@ data LoxCallable =
 --  representing "var a = 5 > 3" would contain "a" as the `String`
 --  and "5 > 3" as the `Expression`.
 data Statement =
+    -- TODO: should these declarations use Token values instead?
+    FunDeclaration String [String] Statement           |
     VarDeclaration String Expression                   |
     ExpressionStatement   Expression                   |
     PrintStatement        Expression                   |

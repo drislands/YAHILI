@@ -5,7 +5,7 @@ import Parse
 
 import Prelude hiding (init)
 import Control.Monad.State
-import Control.Monad.Writer (Writer)
+import Control.Monad.Writer (Writer, MonadWriter (tell))
 
 parseProgram :: Tokens -> Writer [ParseError] Program
 parseProgram = evalStateT parseProgram'
@@ -126,6 +126,39 @@ parseExpressionStmt = do
     expr <- parseExpression
     consume_ Lx_Semicolon "Expect ';' after value."
     pure $ ExpressionStatement expr
+
+parseFunction :: String -> Parsing Statement
+parseFunction kind = do
+    name' <- consume Lx_Identifier ("Expect " <> kind <> " name.")
+    let name = getLexeme name'
+    consume_ Lx_LeftParen ("Expect '(' after " <> kind <> " name.")
+    p <- peek 
+    mparams <- case getTokenType p of
+        Lx_RightParen -> pure $ Right []
+        _             -> parseParameters 1
+    case mparams of
+        Left t -> do
+            lift $ tell [ParseError t "Can't have more than 255 parameters."]
+            synchronize
+            pure $ Block []
+        Right params' -> do
+            let params = map getLexeme params'
+            consume_ Lx_RightParen "Expect ')' after parameters."
+            consume_ Lx_LeftBrace  ("Expect '{' before " <> kind <> " body.")
+            body <- parseBlock
+            pure $ FunDeclaration name params body
+  where
+    parseParameters :: Int -> Parsing (Either Token [Token])
+    parseParameters n = do
+        if n > 255 then do
+            t <- peek
+            pure $ Left t
+        else do
+            param <- consume Lx_Identifier "Expect parameter name."
+            m <- match [Lx_Comma]
+            case m of
+                Nothing -> pure $ Right [param]
+                Just _  -> (fmap . fmap) (param :) (parseParameters (n+1))
 
 parseBlock :: Parsing Statement
 parseBlock = do
