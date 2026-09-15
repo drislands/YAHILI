@@ -9,13 +9,16 @@ import Control.Monad
 import System.Exit (exitWith, ExitCode (ExitFailure))
 import Scan (tokensFromSource, LexError (..))
 import Parse
-import Expression
 import Language
 import Control.Monad.Writer (runWriter)
 import qualified Data.Map as Map
 import Statement
 import Data.Bifunctor (first)
 import Function (mkGlobalFunctions)
+import Control.Monad.Except (runExceptT)
+import Control.Monad.State (StateT(runStateT))
+import Interpreter (evaluateStatement)
+import Data.Foldable (traverse_)
 
 main :: IO ()
 main = do
@@ -84,73 +87,17 @@ run vars source = do
                             loxReport ln (" at '" <> lx <> "'") message
                 pure $ Left 65
             else do
-                mvars <- foldM interpret (Just vars) p
-                case mvars of
-                    Nothing    -> pure $ Left 70
-                    Just vars' -> pure $ Right vars'
+                runExceptT (runStateT (traverse_ evaluateStatement p) vars) >>= \case
+                    Left er -> do
+                        runtimeError er
+                        pure $ Left 70
+                    Right ((),vars') -> pure $ Right vars'
+                -- case mvars of
+                --     Nothing    -> pure $ Left 70
+                --     Just vars' -> pure $ Right vars'
         Nothing -> do
             putStrLn "The list of tokens does not end in EOF! How'd that happen?"
             pure $ Left 65
-
--- The meat.
-interpret :: Maybe Variables -> Statement -> IO (Maybe Variables)
-interpret mvars st = do
-    case mvars of
-        Nothing -> pure Nothing
-        Just vars -> case st of
-            VarDeclaration name e -> do
-                evaluate vars e >>= \case
-                    Left er -> do
-                        runtimeError er
-                        pure Nothing
-                    Right (val,vars') -> do
-                        pure $ Just (define name val vars')
-            PrintStatement e ->
-                evaluate vars e >>= \case
-                    Left er -> do
-                        runtimeError er
-                        pure Nothing
-                    Right (val,vars') -> do
-                        putStrLn $ show val
-                        pure $ Just vars'
-            ExpressionStatement e ->
-                evaluate vars e >>= \case
-                    Left er -> do
-                        runtimeError er
-                        pure Nothing
-                    Right (_,vars') -> do
-                        pure $ Just vars'
-            Block statements -> do
-                mvars' <- foldM interpret ((first (Map.empty :)) <$> mvars) statements
-                pure $ case mvars' of
-                    Just (_ : rest,g) -> Just (rest,g)
-                    _                 -> Nothing
-            IfStatement condition thenBranch elseBranch -> do
-                evaluate vars condition >>= \case
-                    Left er -> do
-                        runtimeError er
-                        pure Nothing
-                    Right (val,vars') -> do
-                        if truthy val then interpret (Just vars') thenBranch
-                        else case elseBranch of
-                            Just elseBranch' -> interpret (Just vars') elseBranch'
-                            Nothing          -> pure $ Just vars'
-            WhileStatement condition body -> while vars condition body
-            FunDeclaration _ -> undefined
-  where
-    while :: Variables -> Expression -> Statement -> IO (Maybe Variables)
-    while vars cond body = do
-        evaluate vars cond >>= \case
-            Left er -> do
-                runtimeError er
-                pure Nothing
-            Right (val,vars') -> 
-                if truthy val then do
-                    mvars'' <- interpret (Just vars') body 
-                    case mvars'' of
-                        Nothing -> pure Nothing
-                        Just vars'' -> while vars'' cond body
-                else pure $ Just vars'
 
 
 -- Error stuff.

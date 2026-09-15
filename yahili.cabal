@@ -58,9 +58,9 @@ library
     exposed-modules:  Scan
                      ,Language
                      ,Parse
-                     ,Expression
                      ,Statement
                      ,Function
+                     ,Interpreter
 
     build-depends:    base ^>=4.20.2.0
                      ,directory
@@ -84,9 +84,9 @@ executable yahili
     other-modules:    Scan
                      ,Language
                      ,Parse
-                     ,Expression
                      ,Statement
                      ,Function
+                     ,Interpreter
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
