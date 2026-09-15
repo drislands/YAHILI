@@ -26,16 +26,16 @@ parseProgram'' program = do
 
 parseStatement :: Parsing Statement
 parseStatement = do
-    m <- match [Lx_Print,Lx_Var,Lx_LeftBrace,Lx_If,Lx_While,Lx_For]
-    case m of
-        Just t  
-            | getTokenType t == Lx_If        -> parseIfStmt
-            | getTokenType t == Lx_While     -> parseWhileStmt
-            | getTokenType t == Lx_For       -> parseForStmt
-            | getTokenType t == Lx_Print     -> parsePrintStmt
-            | getTokenType t == Lx_Var       -> parseDeclaration
-            | getTokenType t == Lx_LeftBrace -> parseBlock
-        _ -> parseExpressionStmt
+    t <- peek
+    case getTokenType t of
+        Lx_If        -> advance >> parseIfStmt
+        Lx_While     -> advance >> parseWhileStmt
+        Lx_For       -> advance >> parseForStmt
+        Lx_Print     -> advance >> parsePrintStmt
+        Lx_Var       -> advance >> parseDeclaration
+        Lx_LeftBrace -> advance >> parseBlock
+        Lx_Fun       -> advance >> parseFunction "function"
+        _            -> parseExpressionStmt
 
 parseIfStmt :: Parsing Statement
 parseIfStmt = do
