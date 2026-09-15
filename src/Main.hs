@@ -11,13 +11,11 @@ import Scan (tokensFromSource, LexError (..))
 import Parse
 import Language
 import Control.Monad.Writer (runWriter)
-import qualified Data.Map as Map
 import Statement
-import Data.Bifunctor (first)
 import Function (mkGlobalFunctions)
 import Control.Monad.Except (runExceptT)
 import Control.Monad.State (StateT(runStateT))
-import Interpreter (evaluateStatement)
+import Interpreter (evaluateStatement, EvalSignal (SigError, SigReturn))
 import Data.Foldable (traverse_)
 
 main :: IO ()
@@ -108,6 +106,9 @@ loxReport :: Int -> String -> String -> IO ()
 loxReport lineNum where' message = do
     hPutStrLn stderr $ "[line " <> show lineNum <> "] Error" <> where' <> ": " <> message
 
-runtimeError :: EvalError -> IO ()
-runtimeError (EvalError t msg) = do
-    hPutStrLn stderr $ msg <> "\n[line " <> show (getLineNum t) <> "]"
+runtimeError :: EvalSignal -> IO ()
+runtimeError = \case
+    SigError (EvalError t msg) ->
+        hPutStrLn stderr $ msg <> "\n[line " <> show (getLineNum t) <> "]"
+    SigReturn _ ->
+        hPutStrLn stderr $ "Ran into a return all the way out here. That shouldn't happen."
