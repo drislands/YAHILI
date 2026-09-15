@@ -255,7 +255,8 @@ data Statement =
     PrintStatement        Expression                   |
     Block                [Statement]                   |
     IfStatement Expression Statement (Maybe Statement) |
-    WhileStatement Expression Statement
+    WhileStatement Expression Statement                |
+    ReturnStatement Token Expression
     deriving (Show)
 
 data FunctionDeclaration = FunctionDeclaration

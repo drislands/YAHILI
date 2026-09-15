@@ -35,6 +35,7 @@ parseStatement = do
         Lx_Var       -> advance >> parseDeclaration
         Lx_LeftBrace -> advance >> parseBlock
         Lx_Fun       -> advance >> parseFunction "function"
+        Lx_Return    -> advance >> parseReturnStmt t
         _            -> parseExpressionStmt
 
 parseIfStmt :: Parsing Statement
@@ -164,6 +165,14 @@ parseFunction kind = do
             case m of
                 Nothing -> pure $ Right [param]
                 Just _  -> (fmap . fmap) (param :) (parseParameters (n+1))
+
+parseReturnStmt :: Token -> Parsing Statement
+parseReturnStmt t = do
+    next <- peek
+    value <- if getTokenType next == Lx_Semicolon then pure LNil
+        else parseExpression
+    consume_ Lx_Semicolon "Expect ';' after return value."
+    pure $ ReturnStatement t value
 
 parseBlock :: Parsing Statement
 parseBlock = do
