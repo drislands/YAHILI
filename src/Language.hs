@@ -12,9 +12,13 @@ module Language
     , Tokens
     , Variables
     , Scope
+    , Locals
     , define
     , assign
     , lookup
+    , onLocals
+    , onFuns
+    , onGlobals
     , Value(..)
     , LoxCallable(..)
     , Statement(..)
@@ -29,7 +33,6 @@ module Language
 
 import Prelude hiding (head,tail,lookup)
 import Data.Int
-import Data.Bifunctor (first)
 import qualified Data.Map as Map
 import Text.Printf
 
@@ -97,43 +100,55 @@ data EvalError =
 
 -- |A `Map.Map` of variable names and associate `Value`s.
 type Scope = Map.Map String Value
+type Globals = Scope
+type Locals  = [Scope]
+type FunScopes = Map.Map String Locals
 -- |The whole set of `Scope`s for the current state of the program.
 --  The first value is all non-global `Scope`s from most local up,
 --  and the second value is the global `Scope`.
-type Variables = ([Scope],Scope)
+type Variables = (Locals,FunScopes,Globals)
 
 -- |Defines a variable with a `Value`. If the variable
 --  already exists in the lowest scope, it is equivalent
 --  to calling `assign`.
 define :: String -> Value -> Variables -> Variables
-define k v (vars:rest,g) = 
+define k v (vars:rest,funs,g) = 
     let vars' = Map.insert k v vars
-    in  (vars' : rest,g)
-define k v ([],g) =
+    in  (vars' : rest,funs,g)
+define k v ([],funs,g) =
     let g' = Map.insert k v g
-    in  ([],g')
+    in  ([],funs,g')
 
 -- |Assigns a `Value` to an existing variable in any `Scope`.
 --  Returns `Nothing` if the variable does not exist.
 assign :: String -> Value -> Variables -> Maybe Variables
-assign k v (vars:rest,g) =
+assign k v (vars:rest,funs,g) =
     if Map.member k vars
-    then Just $ (Map.insert k v vars : rest,g)
-    else (first (vars:)) <$> assign k v (rest,g)
-assign k v ([],g) =
+    then Just $ (Map.insert k v vars : rest,funs,g)
+    else (onLocals (vars:)) <$> assign k v (rest,funs,g)
+assign k v ([],funs,g) =
     if Map.member k g
-    then Just $ ([],Map.insert k v g)
+    then Just $ ([],funs,Map.insert k v g)
     else Nothing
 
 -- |Obtains the `Value` associated with a variable name.
 --  If it can't be found at the lowest `Scope`, recurse
 --  up until we check the global `Scope`.
 lookup :: String -> Variables -> Maybe Value
-lookup k (vars:rest,g) =
+lookup k (vars:rest,funs,g) =
     case Map.lookup k vars of
-        Nothing -> lookup k (rest,g)
+        Nothing -> lookup k (rest,funs,g)
         Just r  -> Just r
-lookup k ([],g) = Map.lookup k g
+lookup k ([],_,g) = Map.lookup k g
+
+onLocals :: (Locals -> Locals) -> Variables -> Variables
+onLocals  f (locals,funs,g) = (f locals,funs,g)
+
+onFuns :: (FunScopes -> FunScopes) -> Variables -> Variables
+onFuns    f (locals,funs,g) = (locals,f funs, g)
+
+onGlobals :: (Globals -> Globals) -> Variables -> Variables
+onGlobals f (locals,funs,g) = (locals,funs,f g)
 
 -- -----
 -- |A `Token` of `TokenType` `Lx_EOF`. Attempting to construct this

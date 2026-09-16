@@ -112,15 +112,18 @@ evaluateCall callee t args = do
                 args' <- mapM evaluateExpression args
                 case callable of
                     UserDefined declaration -> do
-                        (old,g) <- get
+                        (old,funs,g) <- get
                         let body    = funBody declaration
                             params  = funParams declaration
+                            name    = funName declaration
                             zipped  = zip params args'
-                            newvars = ([Map.fromList zipped],g)
+                        funscope <- getFunScope name
+                        let newvars = (Map.fromList zipped : funscope,funs,g)
                         put newvars
                         val <- (evaluateStatement body >> pure VNil) `catchError` handleSignal
-                        (_,g') <- get
-                        put (old,g')
+                        (funscope',funs',g') <- get
+                        putFunScope name funscope'
+                        put (old,funs',g')
                         pure val
                     NativeFunction iofunc -> do
                         result <- lift $ liftIO (iofunc args')
@@ -245,11 +248,21 @@ truthy = \case
     _          -> True
 
 addScope :: Variables -> Variables
-addScope (rest,g) = (Map.empty : rest,g)
+addScope (rest,funs,g) = (Map.empty : rest,funs,g)
 
 dropScope :: Variables -> Variables
-dropScope (_:rest,g) = (rest,g)
-dropScope ([],g)     = ([],g) -- shouldn't ever happen...
+dropScope (_:rest,funs,g) = (rest,funs,g)
+dropScope ([],funs,g)     = ([],funs,g) -- shouldn't ever happen...
+
+getFunScope :: MonadIO m => String -> Evaluating m Locals
+getFunScope k = do
+    (_,funs,_) <- get
+    case Map.lookup k funs of
+        Just r  -> pure r
+        Nothing -> pure []
+
+putFunScope :: MonadIO m => String -> Locals -> Evaluating m ()
+putFunScope k v = modify' (onFuns (Map.insert k v))
 
 error :: MonadError EvalSignal m => Token -> String -> m a
 error op message = throwError $ SigError $ EvalError op message
