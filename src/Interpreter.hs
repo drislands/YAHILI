@@ -227,7 +227,7 @@ evaluateStatement = \case
 evaluateWhile :: MonadIO m => Expression -> Statement -> Evaluating m ()
 evaluateWhile condition body = do
     val <- evaluateExpression condition
-    if truthy val then evaluateWhile condition body
+    if truthy val then evaluateStatement body >> evaluateWhile condition body
     else pure ()
 
 evaluateFunDec :: MonadIO m => FunctionDeclaration -> Evaluating m ()
