@@ -118,10 +118,13 @@ evaluateCall callee t args = do
                              , funParams = params
                              , funBody   = body
                              } = declaration
+                            targetName = case callee of
+                                Identifier tok -> getLexeme tok
+                                _              -> name
                         put (Map.fromList (zip params args') : functionLocals,g)
                         (val,(functionLocals',g')) <- runClosure body
                         let updatedCallable = VCallable arity (UserDefined declaration functionLocals')
-                        let finalVars = case assign name updatedCallable (callerLocals,g') of
+                        let finalVars = case assign targetName updatedCallable (callerLocals,g') of
                              Just vars -> vars   
                              Nothing   -> (callerLocals,g')
                         put finalVars
