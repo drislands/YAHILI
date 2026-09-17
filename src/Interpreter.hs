@@ -111,19 +111,20 @@ evaluateCall callee t args = do
             else do
                 args' <- mapM evaluateExpression args
                 case callable of
-                    UserDefined declaration -> do
-                        (old,funs,g) <- get
-                        let body    = funBody declaration
-                            params  = funParams declaration
-                            name    = funName declaration
-                            zipped  = zip params args'
-                        funscope <- getFunScope name
-                        let newvars = (Map.fromList zipped : funscope,funs,g)
-                        put newvars
-                        val <- (evaluateStatement body >> pure VNil) `catchError` handleSignal
-                        (funscope',funs',g') <- get
-                        putFunScope name funscope'
-                        put (old,funs',g')
+                    UserDefined declaration functionLocals -> do
+                        (callerLocals,g) <- get
+                        let FunctionDeclaration 
+                             { funName   = name
+                             , funParams = params
+                             , funBody   = body
+                             } = declaration
+                        put (Map.fromList (zip params args') : functionLocals,g)
+                        (val,(functionLocals',g')) <- runClosure body
+                        let updatedCallable = VCallable arity (UserDefined declaration functionLocals')
+                        let finalVars = case assign name updatedCallable (callerLocals,g') of
+                             Just vars -> vars   
+                             Nothing   -> (callerLocals,g')
+                        put finalVars
                         pure val
                     NativeFunction iofunc -> do
                         result <- lift $ liftIO (iofunc args')
@@ -137,6 +138,13 @@ evaluateCall callee t args = do
     handleSignal = \case
         SigError er -> throwError $ SigError er
         SigReturn val -> pure val
+    runClosure :: MonadIO m => Statement -> Evaluating m (Value,Variables)
+    runClosure body = do
+        val <- (evaluateStatement body >> pure VNil) `catchError` handleSignal
+        (locals,g) <- get
+        case locals of
+            _ : rest -> pure (val,(rest,g))
+            rest     -> pure (val,(rest,g))
 
 
 -- Binary functions
@@ -235,9 +243,10 @@ evaluateWhile condition body = do
 
 evaluateFunDec :: MonadIO m => FunctionDeclaration -> Evaluating m ()
 evaluateFunDec declaration = do
+    (locals,_) <- get
     let name  = funName declaration
         arity = length $ funParams declaration
-    modify' $ define name (VCallable arity (UserDefined declaration))
+    modify' $ define name (VCallable arity (UserDefined declaration locals))
 
 -- Helpers
 -- Nil is false, False is false, everything else is true.
@@ -248,21 +257,11 @@ truthy = \case
     _          -> True
 
 addScope :: Variables -> Variables
-addScope (rest,funs,g) = (Map.empty : rest,funs,g)
+addScope (rest,g) = (Map.empty : rest,g)
 
 dropScope :: Variables -> Variables
-dropScope (_:rest,funs,g) = (rest,funs,g)
-dropScope ([],funs,g)     = ([],funs,g) -- shouldn't ever happen...
-
-getFunScope :: MonadIO m => String -> Evaluating m Locals
-getFunScope k = do
-    (_,funs,_) <- get
-    case Map.lookup k funs of
-        Just r  -> pure r
-        Nothing -> pure []
-
-putFunScope :: MonadIO m => String -> Locals -> Evaluating m ()
-putFunScope k v = modify' (onFuns (Map.insert k v))
+dropScope (_:rest,g) = (rest,g)
+dropScope ([],g)     = ([],g) -- shouldn't ever happen...
 
 error :: MonadError EvalSignal m => Token -> String -> m a
 error op message = throwError $ SigError $ EvalError op message

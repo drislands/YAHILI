@@ -8,7 +8,7 @@ import Data.Time.Clock.POSIX (getPOSIXTime)
 mkGlobalFunctions :: Variables
 mkGlobalFunctions =
     let globals = foldr insert Map.empty gfunctions
-    in  ([],Map.empty,globals)
+    in  ([],globals)
   where
     insert :: (String,Value) -> Map.Map String Value-> Map.Map String Value
     insert (k,v) = Map.insert k v

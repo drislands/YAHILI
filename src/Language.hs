@@ -17,7 +17,6 @@ module Language
     , assign
     , lookup
     , onLocals
-    , onFuns
     , onGlobals
     , Value(..)
     , LoxCallable(..)
@@ -102,53 +101,49 @@ data EvalError =
 type Scope = Map.Map String Value
 type Globals = Scope
 type Locals  = [Scope]
-type FunScopes = Map.Map String Locals
 -- |The whole set of `Scope`s for the current state of the program.
 --  The first value is all non-global `Scope`s from most local up,
 --  and the second value is the global `Scope`.
-type Variables = (Locals,FunScopes,Globals)
+type Variables = (Locals,Globals)
 
 -- |Defines a variable with a `Value`. If the variable
 --  already exists in the lowest scope, it is equivalent
 --  to calling `assign`.
 define :: String -> Value -> Variables -> Variables
-define k v (vars:rest,funs,g) = 
+define k v (vars:rest,g) = 
     let vars' = Map.insert k v vars
-    in  (vars' : rest,funs,g)
-define k v ([],funs,g) =
+    in  (vars' : rest,g)
+define k v ([],g) =
     let g' = Map.insert k v g
-    in  ([],funs,g')
+    in  ([],g')
 
 -- |Assigns a `Value` to an existing variable in any `Scope`.
 --  Returns `Nothing` if the variable does not exist.
 assign :: String -> Value -> Variables -> Maybe Variables
-assign k v (vars:rest,funs,g) =
+assign k v (vars:rest,g) =
     if Map.member k vars
-    then Just $ (Map.insert k v vars : rest,funs,g)
-    else (onLocals (vars:)) <$> assign k v (rest,funs,g)
-assign k v ([],funs,g) =
+    then Just $ (Map.insert k v vars : rest,g)
+    else (onLocals (vars:)) <$> assign k v (rest,g)
+assign k v ([],g) =
     if Map.member k g
-    then Just $ ([],funs,Map.insert k v g)
+    then Just $ ([],Map.insert k v g)
     else Nothing
 
 -- |Obtains the `Value` associated with a variable name.
 --  If it can't be found at the lowest `Scope`, recurse
 --  up until we check the global `Scope`.
 lookup :: String -> Variables -> Maybe Value
-lookup k (vars:rest,funs,g) =
+lookup k (vars:rest,g) =
     case Map.lookup k vars of
-        Nothing -> lookup k (rest,funs,g)
+        Nothing -> lookup k (rest,g)
         Just r  -> Just r
-lookup k ([],_,g) = Map.lookup k g
+lookup k ([],g) = Map.lookup k g
 
 onLocals :: (Locals -> Locals) -> Variables -> Variables
-onLocals  f (locals,funs,g) = (f locals,funs,g)
-
-onFuns :: (FunScopes -> FunScopes) -> Variables -> Variables
-onFuns    f (locals,funs,g) = (locals,f funs, g)
+onLocals  f (locals,g) = (f locals,g)
 
 onGlobals :: (Globals -> Globals) -> Variables -> Variables
-onGlobals f (locals,funs,g) = (locals,funs,f g)
+onGlobals f (locals,g) = (locals,f g)
 
 -- -----
 -- |A `Token` of `TokenType` `Lx_EOF`. Attempting to construct this
@@ -239,7 +234,7 @@ instance Show Value where
     show VNil          = "nil"
     show (VCallable _ lc) = 
         case lc of
-            UserDefined decl -> "<fn " <> funName decl <> ">"
+            UserDefined decl _ -> "<fn " <> funName decl <> ">"
             NativeFunction _ -> "<fn native>"
 
 -- |Quick math to confirm a Double is an integer
@@ -255,7 +250,7 @@ isInteger d
 -- |Represents a function, either defined by the user with `Lx_Fun` or
 --  a native one defined by the language such as "clock()".
 data LoxCallable =
-    UserDefined FunctionDeclaration |
+    UserDefined FunctionDeclaration Locals |
     NativeFunction ([Value] -> IO (Either EvalError Value))
 
 -- Statements!
