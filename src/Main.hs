@@ -11,7 +11,6 @@ import Scan (tokensFromSource, LexError (..))
 import Parse
 import Language
 import Control.Monad.Writer (runWriter)
-import Statement
 import Function (mkGlobalFunctions)
 import Control.Monad.Except (runExceptT)
 import Control.Monad.State (StateT(runStateT))

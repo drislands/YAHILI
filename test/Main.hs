@@ -7,6 +7,7 @@ import Control.Monad.Writer
 import Scan
 import Language
 import Parse
+import Control.Monad.State
 
 -- Equality instances for testing.
 instance Eq ParseError where
@@ -116,7 +117,7 @@ testExpression input expected = do
         Nothing -> assertFailure $ "Tokens from `" <> input 
             <> "` could not be parsed"
         Just tokens -> do
-            let (expression,perrors) = runWriter (parse tokens)
+            let (expression,perrors) = runWriter (evalStateT parseExpression tokens)
             perrors @?= []
             expression @?= expected
 

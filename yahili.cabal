@@ -58,7 +58,6 @@ library
     exposed-modules:  Scan
                      ,Language
                      ,Parse
-                     ,Statement
                      ,Function
                      ,Interpreter
 
@@ -84,7 +83,6 @@ executable yahili
     other-modules:    Scan
                      ,Language
                      ,Parse
-                     ,Statement
                      ,Function
                      ,Interpreter
 
