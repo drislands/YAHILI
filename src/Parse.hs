@@ -22,7 +22,7 @@ parseExpression = parseAssignment
 
 parseAssignment :: Parsing Expression
 parseAssignment = do
-    expr <- parseOr
+    expr <- parseLambda
     m <- match [Lx_Equal]
     case m of
         Nothing -> pure expr
@@ -34,6 +34,46 @@ parseAssignment = do
                 _            -> do
                     lift $ tell [ParseError eq "Invalid assignment target."]
                     pure expr
+
+parseLambda :: Parsing Expression
+parseLambda = do
+    m <- match [Lx_Fun]
+    case m of
+        Nothing -> parseOr
+        Just _ -> do
+            consume_ Lx_LeftParen "Expect '(' after `fun`."
+            p <- peek
+            mparams <- case getTokenType p of
+                Lx_RightParen -> pure $ Right []
+                _             -> parseParameters 1
+            case mparams of
+                Left er -> do
+                    lift $ tell [ParseError er "Can't have more than 255 parameters."]
+                    synchronize
+                    pure $ LNil
+                Right params' -> do
+                    let params = map getLexeme params'
+                    consume_ Lx_RightParen "Expect ')' after parameters."
+                    consume_ Lx_LeftBrace  "Expect '{' before lambda body."
+                    body <- parseBlock
+                    let decl = FunctionDeclaration
+                         { funName = "lambda"
+                         , funParams = params
+                         , funBody = body
+                         }
+                    pure $ LambdaExpression decl
+  where
+    parseParameters :: Int -> Parsing (Either Token [Token])
+    parseParameters n = do
+        if n > 255 then do
+            t <- peek
+            pure $ Left t
+        else do
+            param <- consume Lx_Identifier "Expect parameter name."
+            m <- match [Lx_Comma]
+            case m of
+                Nothing -> pure $ Right [param]
+                Just _  -> (fmap . fmap) (param :) (parseParameters (n+1))
 
 parseOr :: Parsing Expression
 parseOr = do

@@ -33,6 +33,7 @@ evaluateExpression = \case
     -- More complex stuff, like control flow!
     Logical left op right -> evaluateLogical left op right
     Call callee t args    -> evaluateCall callee t args
+    LambdaExpression decl -> evaluateLambda decl
 
 -- Individual evaluation functions
 
@@ -149,6 +150,11 @@ evaluateCall callee t args = do
             _ : rest -> pure (val,(rest,g))
             rest     -> pure (val,(rest,g))
 
+evaluateLambda :: MonadIO m => FunctionDeclaration -> Evaluating m Value
+evaluateLambda declaration = do
+    (locals,_) <- get
+    let arity = length $ funParams declaration
+    pure $ (VCallable arity (UserDefined declaration locals))
 
 -- Binary functions
 evaluateBinaryValues :: MonadIO m => ((Value,Value) -> Evaluating m Value) -> Expression -> Expression -> Evaluating m Value

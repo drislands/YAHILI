@@ -88,7 +88,8 @@ data Expression =
     -- Variables!
     Assignment Token Expression          | -- p = 9;
     Identifier Token                     |
-    Call Expression Token [Expression]     -- f ( g, h) etc
+    Call Expression Token [Expression]   | -- f ( g, h) etc
+    LambdaExpression FunctionDeclaration
     deriving (Show)
 
 -- |Represents an error encountered while evaluating `Tokens`.
