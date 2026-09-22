@@ -6,6 +6,7 @@ import Parse
 import Prelude hiding (init)
 import Control.Monad.State
 import Control.Monad.Writer (Writer, MonadWriter (tell))
+import Control.Monad (when)
 
 parseProgram :: Tokens -> Writer [ParseError] Program
 parseProgram = evalStateT parseProgram'
@@ -106,6 +107,8 @@ parseDeclaration = do
     t <- consume Lx_Identifier "Expect variable name."
     val <- init
     consume_ Lx_Semicolon "Expect ';' after variable declaration."
+    when (anyMatchingLexemes t val) $
+        lift $ tell [ParseError t "Can't read local variable in its own initializer."]
     pure $ VarDeclaration (getLexeme t) val
   where
     init :: Parsing Expression
@@ -114,6 +117,19 @@ parseDeclaration = do
         case m of
             Just _ -> parseExpression
             Nothing -> pure LNil
+    anyMatchingLexemes :: Token -> Expression -> Bool
+    anyMatchingLexemes t expr =
+        let lx = getLexeme t
+        in case expr of
+            Identifier t2   -> lx == getLexeme t2
+            Assignment t2 e -> lx == getLexeme t2 || 
+                anyMatchingLexemes t e
+            Call e _ es     -> any (anyMatchingLexemes t) (e : es)
+            Binary e1 _ e2  -> any (anyMatchingLexemes t) [e1,e2]
+            Unary _ e       -> anyMatchingLexemes t e
+            Grouping e      -> anyMatchingLexemes t e
+            Logical e1 _ e2 -> any (anyMatchingLexemes t) [e1,e2]
+            _ -> False
 
 
 parsePrintStmt :: Parsing Statement
