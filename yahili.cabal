@@ -67,6 +67,7 @@ library
                      ,mtl
                      ,containers
                      ,time
+                     ,effectful
 
     -- Directories containing source files.
     hs-source-dirs:   src
@@ -98,6 +99,7 @@ executable yahili
                      ,mtl
                      ,containers
                      ,time
+                     ,effectful
 
     -- Directories containing source files.
     hs-source-dirs:   src

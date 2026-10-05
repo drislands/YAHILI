@@ -1,12 +1,16 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Parse where
 
 import Prelude hiding (head,tail)
 
-import Control.Monad.Writer
-import Control.Monad.State
--- import GHC.Pre
+import Effectful
+import Effectful.State.Static.Local
+import Effectful.Writer.Static.Local
+import qualified Control.Monad.Writer as W
 
 import Language
 import Control.Monad (unless)
@@ -15,7 +19,7 @@ data ParseError =
     ParseError Token String 
     deriving (Show)
 
-type Parsing a = StateT Tokens (Writer [ParseError]) a
+type Parsing es a = (State Tokens :> es, Writer [ParseError] :> es ) => Eff es a
 
 
 parenthesize :: String -> [Expression] -> String
@@ -36,13 +40,18 @@ uglyPrint = \case
     Logical l op r         -> parenthesize (getLexeme op) [l,r]
     Call c _ args          -> parenthesize "call" (c:args)
 
-parse :: Tokens -> Writer [ParseError] Expression
-parse = evalStateT parseExpression
+parse :: Tokens -> W.Writer [ParseError] Expression
+parse initialTokens = do
+    let (expr, errors) = runPureEff
+                       . runWriter
+                       . evalState initialTokens
+                       $ parseExpression
+    W.writer (expr, errors)
 
-parseExpression :: Parsing Expression
+parseExpression :: Parsing es Expression
 parseExpression = parseAssignment
 
-parseAssignment :: Parsing Expression
+parseAssignment :: Parsing es Expression
 parseAssignment = do
     expr <- parseOr
     m <- match [Lx_Equal]
@@ -54,10 +63,10 @@ parseAssignment = do
                     value <- parseAssignment
                     pure $ Assignment v value
                 _            -> do
-                    lift $ tell [ParseError eq "Invalid assignment target."]
+                    tell [ParseError eq "Invalid assignment target."]
                     pure expr
 
-parseOr :: Parsing Expression
+parseOr :: Parsing es Expression
 parseOr = do
     left <- parseAnd
     m <- match [Lx_Or]
@@ -67,7 +76,7 @@ parseOr = do
             right <- parseOr
             pure $ Logical left op right
 
-parseAnd :: Parsing Expression
+parseAnd :: Parsing es Expression
 parseAnd = do
     left <- parseEquality
     m <- match [Lx_And]
@@ -77,24 +86,23 @@ parseAnd = do
             right <- parseAnd
             pure $ Logical left op right
 
-parseEquality :: Parsing Expression
+parseEquality :: Parsing es Expression
 parseEquality = parseBinary parseComparison [Lx_BangEqual,Lx_EqualEqual]
 
-parseComparison :: Parsing Expression
+parseComparison :: Parsing es Expression
 parseComparison = parseBinary parseTerm [Lx_Greater,Lx_GreaterEqual,Lx_Less,Lx_LessEqual]
 
-parseTerm :: Parsing Expression
+parseTerm :: Parsing es Expression
 parseTerm = parseBinary parseFactor [Lx_Minus,Lx_Plus]
 
-parseFactor :: Parsing Expression
+parseFactor :: Parsing es Expression
 parseFactor = parseBinary parseUnary [Lx_Slash,Lx_Star]
 
-parseBinary :: Parsing Expression -> [TokenType] -> Parsing Expression
+parseBinary :: Parsing es Expression -> [TokenType] -> Parsing es Expression
 parseBinary nextFunc types = do
     left <- nextFunc
     loop left
   where
-    loop :: Expression -> Parsing Expression
     loop expr = do
         match types >>= \case
             Just t -> do
@@ -102,7 +110,7 @@ parseBinary nextFunc types = do
                 loop (Binary expr t right)
             Nothing -> pure expr
 
-parseUnary :: Parsing Expression
+parseUnary :: Parsing es Expression
 parseUnary = do
     match [Lx_Bang,Lx_Minus] >>= \case
         Just t -> do
@@ -110,12 +118,12 @@ parseUnary = do
             pure $ Unary t right
         Nothing -> parseCall
 
-parseCall :: Parsing Expression
+parseCall :: Parsing es Expression
 parseCall = do
     expr <- parsePrimary
     finishCall expr
   where
-    finishCall :: Expression -> Parsing Expression
+    finishCall :: Expression -> Parsing es Expression
     finishCall callee = do
         m <- match [Lx_LeftParen]
         case m of
@@ -127,14 +135,14 @@ parseCall = do
                     else parseArgs 1
                 case margs of
                     Left t -> do
-                        lift $ tell [ParseError t "Can't have more than 255 arguments."]
+                        tell [ParseError t "Can't have more than 255 arguments."]
                         synchronize
                         pure LNil
                     Right args -> do
                         paren <- consume Lx_RightParen "Expect ')' after arguments."
                         finishCall (Call callee paren args)
 
-    parseArgs :: Int -> Parsing (Either Token [Expression])
+    parseArgs :: Int -> Parsing es (Either Token [Expression])
     parseArgs n = do
         if n > 255 then do
             t <- peek
@@ -146,7 +154,7 @@ parseCall = do
                 Nothing -> pure $ Right [arg]
                 Just _  -> (fmap . fmap) (arg :) (parseArgs (n+1))
 
-parsePrimary :: Parsing Expression
+parsePrimary :: Parsing es Expression
 parsePrimary = do
     t <- peek
     case matchLit t of
@@ -161,7 +169,7 @@ parsePrimary = do
                     pure $ Grouping e
                 Nothing -> do
                     e <- peek
-                    lift $ tell [ParseError e "Expect expression."]
+                    tell [ParseError e "Expect expression."]
                     pure LNil
 
   where
@@ -180,7 +188,7 @@ parsePrimary = do
 
 
 -- Helper stateful functions.
-match :: [TokenType] -> Parsing (Maybe Token)
+match :: [TokenType] -> Parsing es (Maybe Token)
 match types = do
     t <- peek
     if getTokenType t `elem` types then do
@@ -188,41 +196,41 @@ match types = do
         pure (Just t)
     else pure Nothing
 
-advance :: Parsing ()
+advance :: Parsing es ()
 advance = do
     rest <- get
     put $ tail rest
 
-atEnd :: Parsing Bool
+atEnd :: Parsing es Bool
 atEnd = do
     ts <- get
     case ts of
         TksLast _ -> pure True
         _         -> pure False
 
-peek :: Parsing Token
+peek :: Parsing es Token
 peek = do
     tokens <- get
     pure $ head tokens
 
 -- Error handling!
-consume :: TokenType -> String -> Parsing Token
+consume :: TokenType -> String -> Parsing es Token
 consume tt message = do
     matched <- match [tt]
     case matched of
         Just good -> pure good
         Nothing -> do
             bad <- peek
-            lift $ tell [ParseError bad message]
+            tell [ParseError bad message]
             synchronize
             pure bad
 
-consume_ :: TokenType -> String -> Parsing ()
+consume_ :: TokenType -> String -> Parsing es ()
 consume_ tt message = do
     _ <- consume tt message
     pure ()
 
-synchronize :: Parsing ()
+synchronize :: Parsing es ()
 synchronize = do
     advance
     t <- peek

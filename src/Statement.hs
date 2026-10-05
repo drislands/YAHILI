@@ -1,22 +1,33 @@
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE FlexibleContexts #-}
+
 module Statement where
 
 import Language
 import Parse
 
 import Prelude hiding (init)
-import Control.Monad.State
-import Control.Monad.Writer (Writer, MonadWriter (tell))
+import Control.Monad.Writer (Writer,writer)
 import Control.Monad (when)
 
+import Effectful (runPureEff)
+import Effectful.State.Static.Local (evalState,get)
+import Effectful.Writer.Static.Local (runWriter,tell)
+
 parseProgram :: Tokens -> Writer [ParseError] Program
-parseProgram = evalStateT parseProgram'
+parseProgram initialTokens = do
+    let (expr, errors) = runPureEff
+                       . runWriter
+                       . evalState initialTokens
+                       $ parseProgram'
+    writer (expr,errors)
 
 
-parseProgram' :: Parsing Program
+parseProgram' :: Parsing es Program
 parseProgram' = parseProgram'' []
     
 
-parseProgram'' :: Program -> Parsing Program
+parseProgram'' :: Program -> Parsing es Program
 parseProgram'' program = do
     tks <- get
     case tks of
@@ -25,7 +36,7 @@ parseProgram'' program = do
             stmt <- parseStatement
             parseProgram'' $ program <> [stmt]
 
-parseStatement :: Parsing Statement
+parseStatement :: Parsing es Statement
 parseStatement = do
     t <- peek
     case getTokenType t of
@@ -39,7 +50,7 @@ parseStatement = do
         Lx_Return    -> advance >> parseReturnStmt t
         _            -> parseExpressionStmt
 
-parseIfStmt :: Parsing Statement
+parseIfStmt :: Parsing es Statement
 parseIfStmt = do
     consume_ Lx_LeftParen "Expect '(' after 'if'."
     condition <- parseExpression
@@ -52,7 +63,7 @@ parseIfStmt = do
         Nothing -> pure Nothing
     pure $ IfStatement condition thenBranch elseBranch
 
-parseWhileStmt :: Parsing Statement
+parseWhileStmt :: Parsing es Statement
 parseWhileStmt = do
     consume_ Lx_LeftParen "Expect '(' after 'while'."
     condition <- parseExpression
@@ -60,7 +71,7 @@ parseWhileStmt = do
     body <- parseStatement
     pure $ WhileStatement condition body
 
-parseForStmt :: Parsing Statement
+parseForStmt :: Parsing es Statement
 parseForStmt = do
     consume_ Lx_LeftParen "Expect '(' after 'for'."
     minitializer <- parseInitializer
@@ -73,7 +84,7 @@ parseForStmt = do
         . addIncrement mincrement
         <$> parseStatement
   where
-    parseInitializer :: Parsing (Maybe Statement)
+    parseInitializer :: Parsing es (Maybe Statement)
     parseInitializer = do
         m <- match [Lx_Semicolon,Lx_Var]
         case m of
@@ -81,7 +92,7 @@ parseForStmt = do
                 | getTokenType t == Lx_Semicolon -> pure Nothing
                 | getTokenType t == Lx_Var       -> Just <$> parseDeclaration
             _                                    -> Just <$> parseStatement
-    parseWithoutToken :: TokenType -> Parsing (Maybe Expression)
+    parseWithoutToken :: TokenType -> Parsing es (Maybe Expression)
     parseWithoutToken tt = do
         s <- peek
         if getTokenType s == tt then pure Nothing
@@ -102,16 +113,16 @@ parseForStmt = do
             Nothing -> body
             Just st -> Block [st,body]
 
-parseDeclaration :: Parsing Statement
+parseDeclaration :: Parsing es Statement
 parseDeclaration = do
     t <- consume Lx_Identifier "Expect variable name."
     val <- init
     consume_ Lx_Semicolon "Expect ';' after variable declaration."
     when (anyMatchingLexemes t val) $
-        lift $ tell [ParseError t "Can't read local variable in its own initializer."]
+        tell [ParseError t "Can't read local variable in its own initializer."]
     pure $ VarDeclaration (getLexeme t) val
   where
-    init :: Parsing Expression
+    init :: Parsing es Expression
     init = do
         m <- match [Lx_Equal]
         case m of
@@ -132,19 +143,19 @@ parseDeclaration = do
             _ -> False
 
 
-parsePrintStmt :: Parsing Statement
+parsePrintStmt :: Parsing es Statement
 parsePrintStmt = do
     expr <- parseExpression
     consume_ Lx_Semicolon "Expect ';' after value."
     pure $ PrintStatement expr
 
-parseExpressionStmt :: Parsing Statement
+parseExpressionStmt :: Parsing es Statement
 parseExpressionStmt = do
     expr <- parseExpression
     consume_ Lx_Semicolon "Expect ';' after value."
     pure $ ExpressionStatement expr
 
-parseFunction :: String -> Parsing Statement
+parseFunction :: String -> Parsing es Statement
 parseFunction kind = do
     name' <- consume Lx_Identifier ("Expect " <> kind <> " name.")
     let name = getLexeme name'
@@ -155,7 +166,7 @@ parseFunction kind = do
         _             -> parseParameters 1
     case mparams of
         Left t -> do
-            lift $ tell [ParseError t "Can't have more than 255 parameters."]
+            tell [ParseError t "Can't have more than 255 parameters."]
             synchronize
             pure $ Block []
         Right params' -> do
@@ -170,7 +181,7 @@ parseFunction kind = do
                 , funBody = body
                 }
   where
-    parseParameters :: Int -> Parsing (Either Token [Token])
+    parseParameters :: Int -> Parsing es (Either Token [Token])
     parseParameters n = do
         if n > 255 then do
             t <- peek
@@ -182,7 +193,7 @@ parseFunction kind = do
                 Nothing -> pure $ Right [param]
                 Just _  -> (fmap . fmap) (param :) (parseParameters (n+1))
 
-parseReturnStmt :: Token -> Parsing Statement
+parseReturnStmt :: Token -> Parsing es Statement
 parseReturnStmt t = do
     next <- peek
     value <- if getTokenType next == Lx_Semicolon then pure LNil
@@ -190,13 +201,13 @@ parseReturnStmt t = do
     consume_ Lx_Semicolon "Expect ';' after return value."
     pure $ ReturnStatement t value
 
-parseBlock :: Parsing Statement
+parseBlock :: Parsing es Statement
 parseBlock = do
     statements <- go
     consume_ Lx_RightBrace "Expect '}' after block."
     pure $ Block statements
   where
-    go :: Parsing [Statement]
+    go :: Parsing es [Statement]
     go = do
         next  <- peek
         ended <- atEnd
