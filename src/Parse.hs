@@ -10,7 +10,6 @@ import Prelude hiding (head,tail)
 import Effectful
 import Effectful.State.Static.Local
 import Effectful.Writer.Static.Local
-import qualified Control.Monad.Writer as W
 
 import Language
 import Control.Monad (unless)
@@ -40,13 +39,6 @@ uglyPrint = \case
     Logical l op r         -> parenthesize (getLexeme op) [l,r]
     Call c _ args          -> parenthesize "call" (c:args)
 
-parse :: Tokens -> W.Writer [ParseError] Expression
-parse initialTokens = do
-    let (expr, errors) = runPureEff
-                       . runWriter
-                       . evalState initialTokens
-                       $ parseExpression
-    W.writer (expr, errors)
 
 parseExpression :: Parsing es Expression
 parseExpression = parseAssignment

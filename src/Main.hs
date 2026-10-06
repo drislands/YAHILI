@@ -13,10 +13,11 @@ import Language
 import Control.Monad.Writer (runWriter)
 import Statement
 import Function (mkGlobalFunctions)
-import Control.Monad.Except (runExceptT)
-import Control.Monad.State (StateT(runStateT))
 import Interpreter (evaluateStatement, EvalSignal (SigError, SigReturn))
 import Data.Foldable (traverse_)
+import Effectful
+import Effectful.Error.Static
+import Effectful.State.Static.Local
 
 main :: IO ()
 main = do
@@ -85,8 +86,8 @@ run vars source = do
                             loxReport ln (" at '" <> lx <> "'") message
                 pure $ Left 65
             else do
-                runExceptT (runStateT (traverse_ evaluateStatement p) vars) >>= \case
-                    Left er -> do
+                (runEff . runError . runState vars $ traverse_ evaluateStatement p) >>= \case
+                    Left (_,er) -> do
                         runtimeError er
                         pure $ Left 70
                     Right ((),vars') -> pure $ Right vars'
